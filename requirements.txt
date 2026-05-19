@@ -1,6 +1,7 @@
 torch>=2.4
 torchvision>=0.19
 open_clip_torch>=3.3.0
+transformers>=4.45
 numpy>=2.0
 pandas>=2.0
 pillow>=10.0

@@ -10,6 +10,9 @@ Put the Google Drive image downloads here after cloning:
 Train_clip/
   train_clip_country.py
   requirements.txt
+  Code/
+    train_streetclip_country.py
+    README_StreetCLIP.md
   MODEL/
     DFN2B-CLIP-ViT-B-16/
       open_clip_config.json
@@ -137,4 +140,43 @@ test_report_clip.txt
 test_predictions_detailed_clip.csv
 wiseft_metrics.csv
 config.json
+```
+
+## StreetCLIP Version
+
+StreetCLIP is the geolocation-specialized challenger model.
+
+Manual download page:
+
+```text
+https://huggingface.co/geolocal/StreetCLIP
+```
+
+Put it here:
+
+```text
+Train_clip/MODEL/StreetCLIP/
+```
+
+Then run:
+
+```bash
+python Code/train_streetclip_country.py \
+  --data-root TRAIN_DATASET/koglab_levi \
+  --model-dir MODEL/StreetCLIP \
+  --epochs 8 \
+  --batch-size 64 \
+  --grad-accum-steps 2 \
+  --unfreeze-vision-layers 4 \
+  --lr-head 1e-3 \
+  --lr-vision 1e-5 \
+  --amp-dtype bf16 \
+  --num-workers 8 \
+  --prefetch-factor 4
+```
+
+More details:
+
+```text
+Code/README_StreetCLIP.md
 ```
