@@ -6,6 +6,7 @@ __pycache__/
 TRAIN_DATASET/
 data/
 runs_clip/
+MODEL/
 *.pt
 *.pth
 *.h5

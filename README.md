@@ -10,6 +10,10 @@ Put the Google Drive image downloads here after cloning:
 Train_clip/
   train_clip_country.py
   requirements.txt
+  MODEL/
+    DFN2B-CLIP-ViT-B-16/
+      open_clip_config.json
+      open_clip_pytorch_model.bin
   TRAIN_DATASET/
     koglab_levi/
       argentina/
@@ -23,7 +27,7 @@ Train_clip/
 
 Folders without `_test` are training images. Folders with `_test` are test images.
 
-Do not commit `TRAIN_DATASET/`, `data/`, `runs_clip/`, or model checkpoints.
+Do not commit `MODEL/`, `TRAIN_DATASET/`, `data/`, `runs_clip/`, or model checkpoints.
 
 ## Install
 
@@ -67,26 +71,33 @@ python -c "import torch; print(torch.__version__); print(torch.cuda.is_available
 
 ## Model
 
-Primary CLIP model:
-
-```text
-hf-hub:apple/DFN2B-CLIP-ViT-B-16
-```
-
-Model page:
+Download the CLIP model manually from:
 
 ```text
 https://huggingface.co/apple/DFN2B-CLIP-ViT-B-16
 ```
 
-The model downloads automatically on first run.
+Put it here:
+
+```text
+Train_clip/MODEL/DFN2B-CLIP-ViT-B-16/
+```
+
+The folder must contain:
+
+```text
+MODEL/DFN2B-CLIP-ViT-B-16/open_clip_config.json
+MODEL/DFN2B-CLIP-ViT-B-16/open_clip_pytorch_model.bin
+```
+
+The Python script loads this local folder and does not download the model.
 
 ## Zero-Shot Baseline
 
 ```bash
 python train_clip_country.py \
   --data-root TRAIN_DATASET/koglab_levi \
-  --model hf-hub:apple/DFN2B-CLIP-ViT-B-16 \
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 \
   --zero-shot-only \
   --batch-size 256 \
   --num-workers 8 \
@@ -98,7 +109,7 @@ python train_clip_country.py \
 ```bash
 python train_clip_country.py \
   --data-root TRAIN_DATASET/koglab_levi \
-  --model hf-hub:apple/DFN2B-CLIP-ViT-B-16 \
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 \
   --epochs 12 \
   --batch-size 192 \
   --unfreeze-visual-layers -1 \

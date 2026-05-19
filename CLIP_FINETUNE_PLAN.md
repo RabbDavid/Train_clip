@@ -17,7 +17,20 @@ The new code is `train_clip_country.py`. It uses OpenCLIP directly:
 Primary recommendation:
 
 ```text
-hf-hub:apple/DFN2B-CLIP-ViT-B-16
+MODEL/DFN2B-CLIP-ViT-B-16
+```
+
+Manual download page:
+
+```text
+https://huggingface.co/apple/DFN2B-CLIP-ViT-B-16
+```
+
+Expected local files:
+
+```text
+MODEL/DFN2B-CLIP-ViT-B-16/open_clip_config.json
+MODEL/DFN2B-CLIP-ViT-B-16/open_clip_pytorch_model.bin
 ```
 
 Why:
@@ -30,7 +43,13 @@ Why:
 Fallback if the Apple license is uncomfortable:
 
 ```text
-hf-hub:laion/CLIP-ViT-B-16-DataComp.XL-s13B-b90K
+MODEL/CLIP-ViT-B-16-DataComp.XL-s13B-b90K
+```
+
+Fallback download page:
+
+```text
+https://huggingface.co/laion/CLIP-ViT-B-16-DataComp.XL-s13B-b90K
 ```
 
 This is MIT-licensed and reports 73.5% ImageNet zero-shot accuracy.
@@ -50,7 +69,7 @@ Muon and variants are interesting, but the current evidence is still mostly lang
 
 PyTorch already dispatches scaled dot-product attention to fused CUDA implementations such as FlashAttention when the model/operator path supports it, so the first priority is a clean PyTorch 2.x CUDA install rather than a custom FlashAttention dependency.
 
-## First 5090 Commands
+## First GPU Commands
 
 Install:
 
@@ -76,7 +95,7 @@ Zero-shot sanity baseline:
 ```powershell
 python train_clip_country.py `
   --data-root TRAIN_DATASET/koglab_levi `
-  --model hf-hub:apple/DFN2B-CLIP-ViT-B-16 `
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 `
   --zero-shot-only `
   --batch-size 256 `
   --num-workers 8 `
@@ -88,7 +107,7 @@ Main fine-tune:
 ```powershell
 python train_clip_country.py `
   --data-root TRAIN_DATASET/koglab_levi `
-  --model hf-hub:apple/DFN2B-CLIP-ViT-B-16 `
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 `
   --epochs 12 `
   --batch-size 192 `
   --unfreeze-visual-layers -1 `
@@ -106,7 +125,7 @@ Conservative run if full fine-tuning overfits:
 ```powershell
 python train_clip_country.py `
   --data-root TRAIN_DATASET/koglab_levi `
-  --model hf-hub:apple/DFN2B-CLIP-ViT-B-16 `
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 `
   --epochs 10 `
   --batch-size 256 `
   --unfreeze-visual-layers 4 `

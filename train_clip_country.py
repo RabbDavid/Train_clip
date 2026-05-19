@@ -4,10 +4,10 @@ This is intentionally CLIP-native: classes are represented as text prompt
 prototypes, images are classified by image-text similarity, and fine-tuning
 updates the visual tower while keeping the language tower fixed by default.
 
-Recommended first 5090 run:
+Recommended first GPU run:
     python train_clip_country.py ^
       --data-root TRAIN_DATASET/koglab_levi ^
-      --model hf-hub:apple/DFN2B-CLIP-ViT-B-16 ^
+      --model-dir MODEL/DFN2B-CLIP-ViT-B-16 ^
       --epochs 12 --batch-size 192 --grad-accum-steps 1 ^
       --unfreeze-visual-layers -1 --lr-visual 1e-5 --lr-logit-scale 5e-5 ^
       --amp-dtype bf16
@@ -62,8 +62,8 @@ PROMPT_TEMPLATES = [
 @dataclass
 class RunConfig:
     data_root: str
-    model: str
-    pretrained: Optional[str]
+    model_dir: str
+    model_name: str
     tokenizer: Optional[str]
     classes: List[str]
     prompt_templates: List[str]
@@ -230,13 +230,19 @@ def parse_amp_dtype(name: str):
 
 
 def create_model_and_transforms(args):
-    if args.model.startswith("hf-hub:") and args.pretrained in {None, "", "none"}:
-        return open_clip.create_model_and_transforms(args.model)
-    return open_clip.create_model_and_transforms(args.model, pretrained=args.pretrained)
+    model_dir = Path(args.model_dir)
+    if not model_dir.is_dir():
+        raise FileNotFoundError(
+            f"Local CLIP model folder not found: {model_dir}\n"
+            "Download the model manually first. Expected folder:\n"
+            "  MODEL/DFN2B-CLIP-ViT-B-16/\n"
+            "It must contain open_clip_config.json and model weights."
+        )
+    return open_clip.create_model_and_transforms(f"local-dir:{model_dir}")
 
 
 def get_tokenizer(args):
-    for name in [args.tokenizer, args.model, "ViT-B-16"]:
+    for name in [args.tokenizer, args.model_name, "ViT-B-16"]:
         if not name:
             continue
         try:
@@ -488,8 +494,10 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--data-root", type=Path, default=Path("TRAIN_DATASET/koglab_levi"))
     ap.add_argument("--out-dir", type=Path, default=Path("runs_clip"))
-    ap.add_argument("--model", default="hf-hub:apple/DFN2B-CLIP-ViT-B-16")
-    ap.add_argument("--pretrained", default=None, help="OpenCLIP pretrained tag; leave empty for hf-hub models")
+    ap.add_argument("--model-dir", type=Path, default=Path("MODEL/DFN2B-CLIP-ViT-B-16"),
+                    help="local manually downloaded OpenCLIP model folder")
+    ap.add_argument("--model-name", default="ViT-B-16",
+                    help="tokenizer fallback/model family name; weights are loaded from --model-dir")
     ap.add_argument("--tokenizer", default=None)
     ap.add_argument("--classes", default=None, help="optional comma-separated class list")
     ap.add_argument("--val-fraction", type=float, default=0.10)
@@ -543,7 +551,7 @@ def main() -> None:
     run_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Device: {device}")
-    print(f"Loading OpenCLIP model: {args.model}")
+    print(f"Loading local OpenCLIP model: {args.model_dir}")
     model, preprocess_train, preprocess_val = create_model_and_transforms(args)
     tokenizer = get_tokenizer(args)
     model.to(device=device, memory_format=torch.channels_last)
@@ -575,8 +583,8 @@ def main() -> None:
 
     cfg = RunConfig(
         data_root=str(args.data_root),
-        model=args.model,
-        pretrained=args.pretrained,
+        model_dir=str(args.model_dir),
+        model_name=args.model_name,
         tokenizer=args.tokenizer,
         classes=classes,
         prompt_templates=templates,
