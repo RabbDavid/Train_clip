@@ -1,0 +1,19 @@
+__pycache__/
+*.py[cod]
+.venv/
+
+# Data and model artifacts are too large for GitHub.
+TRAIN_DATASET/
+data/
+runs_clip/
+*.pt
+*.pth
+*.h5
+*.weights.h5
+*.zip
+
+# Local/editor files.
+.env
+.DS_Store
+.idea/
+.vscode/
