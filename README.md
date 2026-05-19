@@ -17,6 +17,10 @@ Train_clip/
     DFN2B-CLIP-ViT-B-16/
       open_clip_config.json
       open_clip_pytorch_model.bin
+    StreetCLIP/
+      config.json
+      preprocessor_config.json
+      model.safetensors
   TRAIN_DATASET/
     koglab_levi/
       argentina/
@@ -30,7 +34,21 @@ Train_clip/
 
 Folders without `_test` are training images. Folders with `_test` are test images.
 
-Do not commit `MODEL/`, `TRAIN_DATASET/`, `data/`, `runs_clip/`, or model checkpoints.
+Do not commit `MODEL/`, `TRAIN_DATASET/`, `data/`, `runs_clip/`, `runs_streetclip/`, or model checkpoints.
+
+## What Each Trainer Does
+
+```text
+train_clip_country.py
+```
+
+DFN2B/OpenCLIP trainer. It keeps CLIP's text side and builds country prompt prototypes such as "a Google Street View image from Hungary". Prediction is image-text similarity. Fine-tuning updates the visual tower and optional logit scale.
+
+```text
+Code/train_streetclip_country.py
+```
+
+StreetCLIP trainer. It uses the geolocation-specialized StreetCLIP image encoder and trains a supervised country classification head. This is probably the strongest model for raw accuracy.
 
 ## Install
 
@@ -122,7 +140,8 @@ python train_clip_country.py \
   --label-smoothing 0.05 \
   --proj-l2 1e-4 \
   --amp-dtype bf16 \
-  --num-workers 8
+  --num-workers 8 \
+  --prefetch-factor 4
 ```
 
 Outputs are saved to:
@@ -138,6 +157,7 @@ best.pt
 last.pt
 test_report_clip.txt
 test_predictions_detailed_clip.csv
+confusion_matrix_clip.csv
 wiseft_metrics.csv
 config.json
 ```
@@ -172,11 +192,22 @@ python Code/train_streetclip_country.py \
   --lr-vision 1e-5 \
   --amp-dtype bf16 \
   --num-workers 8 \
-  --prefetch-factor 4
+  --prefetch-factor 4 \
+  --attn-implementation sdpa
 ```
 
 More details:
 
 ```text
 Code/README_StreetCLIP.md
+FOLDER_STRUCTURE.txt
+REPRODUCIBILITY.md
 ```
+
+## Speed Notes
+
+Both trainers use PyTorch with bf16 AMP, fused AdamW when available, cosine LR warmup, gradient clipping, parallel DataLoader workers, pinned memory, persistent workers, prefetching, non-blocking GPU copies, and channels-last image tensors.
+
+StreetCLIP defaults to Hugging Face/PyTorch `sdpa` attention. `--attn-implementation flash_attention_2` is optional only if the GPU machine already has a compatible `flash-attn` install.
+
+We intentionally keep AdamW instead of Muon for this repo. Muon is interesting, but for small supervised fine-tuning of AdamW-pretrained public checkpoints, AdamW is the clearer and more stable choice.

@@ -1,0 +1,55 @@
+Train_clip/
+  README.md
+    Main setup and run instructions.
+
+  requirements.txt
+    Python package list after installing CUDA PyTorch.
+
+  train_clip_country.py
+    DFN2B/OpenCLIP country trainer.
+    Uses text prompt prototypes and image-text similarity.
+    Outputs go to runs_clip/.
+
+  Code/
+    train_streetclip_country.py
+      StreetCLIP country trainer.
+      Uses StreetCLIP image features plus a supervised country head.
+      Outputs go to runs_streetclip/.
+
+    README_StreetCLIP.md
+      StreetCLIP-specific setup and run notes.
+
+  CLIP_FINETUNE_PLAN.md
+    Research and reasoning notes for model choice and training strategy.
+
+  REPRODUCIBILITY.md
+    Exact setup, model paths, dataset layout, and recommended report runs.
+
+  MODEL/
+    DFN2B-CLIP-ViT-B-16/
+      Manually downloaded from:
+      https://huggingface.co/apple/DFN2B-CLIP-ViT-B-16
+
+    StreetCLIP/
+      Manually downloaded from:
+      https://huggingface.co/geolocal/StreetCLIP
+
+    Not committed to GitHub.
+
+  TRAIN_DATASET/
+    koglab_levi/
+      country/
+        Training images for that country.
+
+      country_test/
+        Test images for that country.
+
+    Not committed to GitHub.
+
+  runs_clip/
+    DFN2B run outputs.
+    Not committed to GitHub.
+
+  runs_streetclip/
+    StreetCLIP run outputs.
+    Not committed to GitHub.

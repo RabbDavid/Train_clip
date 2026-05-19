@@ -64,12 +64,16 @@ class RunConfig:
     epochs: int
     batch_size: int
     grad_accum_steps: int
+    num_workers: int
+    prefetch_factor: int
     lr_head: float
     lr_vision: float
     weight_decay: float
     warmup_epochs: float
     unfreeze_vision_layers: int
     amp_dtype: str
+    attn_implementation: str
+    compile: bool
     seed: int
 
 
@@ -239,8 +243,9 @@ def make_optimizer(model: nn.Module, args) -> torch.optim.Optimizer:
     for name, p in model.named_parameters():
         if not p.requires_grad:
             continue
-        is_head = name.startswith("head.")
-        is_nodecay = p.ndim <= 1 or any(k in name for k in no_decay)
+        clean_name = name.removeprefix("_orig_mod.")
+        is_head = clean_name.startswith("head.")
+        is_nodecay = p.ndim <= 1 or any(k in clean_name for k in no_decay)
         idx = (0 if is_head else 2) + (1 if is_nodecay else 0)
         groups[idx]["params"].append(p)
     groups = [g for g in groups if g["params"]]
@@ -293,7 +298,10 @@ def evaluate(model: nn.Module, loader: DataLoader, device: torch.device, amp_dty
         with autocast(device_type=device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
             logits = model(pixel_values)
             loss = F.cross_entropy(logits, labels)
-        probs = logits.softmax(dim=-1).detach().cpu().numpy()
+        probs_tensor = logits.softmax(dim=-1).detach().cpu()
+        topk_count = min(5, probs_tensor.shape[1])
+        topk_confidences, topk_indices = probs_tensor.topk(topk_count, dim=1)
+        probs = probs_tensor.numpy()
         preds = probs.argmax(axis=1)
         labs = labels.detach().cpu().numpy()
         loss_sum += float(loss.item()) * labels.numel()
@@ -301,12 +309,21 @@ def evaluate(model: nn.Module, loader: DataLoader, device: torch.device, amp_dty
         total += labels.numel()
         y_true.extend(labs.tolist())
         y_pred.extend(preds.tolist())
-        for path, lab, pred, prob in zip(paths, labs.tolist(), preds.tolist(), probs):
+        for path, lab, pred, prob, top_idx, top_conf in zip(
+            paths,
+            labs.tolist(),
+            preds.tolist(),
+            probs,
+            topk_indices.tolist(),
+            topk_confidences.tolist(),
+        ):
             rows.append({
                 "file": path,
                 "actual_country": classes[int(lab)],
                 "predicted_country": classes[int(pred)],
                 "confidence": float(prob[pred]),
+                "top5_countries": "|".join(classes[int(i)] for i in top_idx),
+                "top5_confidences": "|".join(f"{float(v):.6f}" for v in top_conf),
             })
     return correct / max(1, total), loss_sum / max(1, total), rows, np.array(y_true), np.array(y_pred)
 
@@ -328,9 +345,32 @@ def per_class_report(y_true: np.ndarray, y_pred: np.ndarray, classes: Sequence[s
     return "\n".join(lines) + "\n"
 
 
+def save_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, classes: Sequence[str], out_path: Path) -> None:
+    matrix = np.zeros((len(classes), len(classes)), dtype=np.int64)
+    for actual, predicted in zip(y_true.tolist(), y_pred.tolist()):
+        matrix[int(actual), int(predicted)] += 1
+
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerow(["actual_country", *classes])
+        for idx, cls in enumerate(classes):
+            writer.writerow([cls, *matrix[idx].tolist()])
+
+
 def save_predictions(rows: List[Dict[str, object]], out_path: Path) -> None:
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["file", "actual_country", "predicted_country", "confidence"], delimiter=";")
+        writer = csv.DictWriter(
+            f,
+            fieldnames=[
+                "file",
+                "actual_country",
+                "predicted_country",
+                "confidence",
+                "top5_countries",
+                "top5_confidences",
+            ],
+            delimiter=";",
+        )
         writer.writeheader()
         for row in rows:
             writer.writerow({
@@ -338,11 +378,26 @@ def save_predictions(rows: List[Dict[str, object]], out_path: Path) -> None:
                 "actual_country": row["actual_country"],
                 "predicted_country": row["predicted_country"],
                 "confidence": f"{float(row['confidence']):.6f}",
+                "top5_countries": row.get("top5_countries", ""),
+                "top5_confidences": row.get("top5_confidences", ""),
             })
 
 
 def unwrap_model(model: nn.Module) -> nn.Module:
     return getattr(model, "_orig_mod", model)
+
+
+def load_clip_model(model_dir: Path, attn_implementation: str):
+    kwargs: Dict[str, object] = {"local_files_only": True}
+    if attn_implementation != "auto":
+        kwargs["attn_implementation"] = attn_implementation
+    try:
+        return CLIPModel.from_pretrained(model_dir, **kwargs)
+    except (TypeError, ValueError) as exc:
+        if attn_implementation == "sdpa":
+            print(f"WARNING: SDPA attention request was not accepted by this Transformers build ({exc}). Falling back to model default.")
+            return CLIPModel.from_pretrained(model_dir, local_files_only=True)
+        raise
 
 
 def main() -> None:
@@ -370,6 +425,8 @@ def main() -> None:
     ap.add_argument("--unfreeze-vision-layers", type=int, default=4, help="-1 = full vision tower; N = last N layers")
     ap.add_argument("--grad-clip", type=float, default=1.0)
     ap.add_argument("--amp-dtype", choices=["bf16", "fp16", "fp32"], default="bf16")
+    ap.add_argument("--attn-implementation", choices=["auto", "eager", "sdpa", "flash_attention_2"], default="sdpa",
+                    help="Transformers attention backend. sdpa is the safe fast default; flash_attention_2 requires a working flash-attn install.")
     ap.add_argument("--compile", action=argparse.BooleanOptionalAction, default=False)
     ap.add_argument("--fused-adamw", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--seed", type=int, default=42)
@@ -400,11 +457,12 @@ def main() -> None:
     test_samples = limit_per_class(test_samples, args.max_test_per_class, args.seed)
 
     print(f"Loading local StreetCLIP: {args.model_dir}")
-    clip = CLIPModel.from_pretrained(args.model_dir, local_files_only=True)
+    print(f"Attention backend request: {args.attn_implementation}")
+    clip = load_clip_model(args.model_dir, args.attn_implementation)
     processor = CLIPImageProcessor.from_pretrained(args.model_dir, local_files_only=True)
     model = StreetCLIPClassifier(clip, num_classes=len(classes), dropout=args.dropout)
     set_trainable(model, args.unfreeze_vision_layers)
-    model.to(device)
+    model.to(device=device, memory_format=torch.channels_last)
     if args.compile:
         model = torch.compile(model)
 
@@ -432,12 +490,16 @@ def main() -> None:
         epochs=args.epochs,
         batch_size=args.batch_size,
         grad_accum_steps=args.grad_accum_steps,
+        num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
         lr_head=args.lr_head,
         lr_vision=args.lr_vision,
         weight_decay=args.weight_decay,
         warmup_epochs=args.warmup_epochs,
         unfreeze_vision_layers=args.unfreeze_vision_layers,
         amp_dtype=args.amp_dtype,
+        attn_implementation=args.attn_implementation,
+        compile=args.compile,
         seed=args.seed,
     )
     (run_dir / "config.json").write_text(json.dumps(asdict(cfg), indent=2), encoding="utf-8")
@@ -522,6 +584,7 @@ def main() -> None:
         print(f"Best checkpoint test: acc={test_acc:.4f} loss={test_loss:.4f}")
         save_predictions(rows, run_dir / "test_predictions_streetclip.csv")
         (run_dir / "test_report_streetclip.txt").write_text(per_class_report(y_true, y_pred, classes), encoding="utf-8")
+        save_confusion_matrix(y_true, y_pred, classes, run_dir / "confusion_matrix_streetclip.csv")
 
 
 if __name__ == "__main__":

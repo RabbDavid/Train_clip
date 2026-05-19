@@ -1,56 +1,114 @@
 # Reproducibility Notes
 
-Tested local environment:
+This repo is intentionally small: code and docs are committed, while datasets, model weights, and run outputs stay local.
 
-- Python 3.10.11
-- torch 2.11.0
-- torchvision 0.26.0
-- timm 1.0.26
-- open_clip_torch 3.3.0
-- numpy 2.2.6
-- pandas 2.3.3
-- pillow 12.1.1
-- tqdm 4.67.3
-- matplotlib 3.10.9
-- seaborn 0.13.2
-- h5py 3.16.0
+## Python Environment
 
-Install:
+Recommended:
 
 ```powershell
-python -m pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+```
+
+Install CUDA PyTorch from the official selector:
+
+```text
+https://pytorch.org/get-started/locally/
+```
+
+Then install the repo dependencies:
+
+```powershell
 python -m pip install -r requirements.txt
 ```
 
-Regenerate the DINO attention figures used in the report:
+Check the GPU:
 
 ```powershell
-python make_paper_attention_assets.py
-python attention_region_numbers.py
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'no cuda')"
 ```
 
-Run the quantitative attention analysis:
+## Manual Model Downloads
+
+DFN2B/OpenCLIP:
+
+```text
+https://huggingface.co/apple/DFN2B-CLIP-ViT-B-16
+MODEL/DFN2B-CLIP-ViT-B-16/
+```
+
+StreetCLIP:
+
+```text
+https://huggingface.co/geolocal/StreetCLIP
+MODEL/StreetCLIP/
+```
+
+The scripts use local model paths and do not download weights at runtime.
+
+## Dataset Layout
+
+```text
+TRAIN_DATASET/koglab_levi/
+  argentina/
+  argentina_test/
+  ...
+```
+
+Folders without `_test` are training images. Folders with `_test` are test images. If no validation folders exist, the scripts create a stratified validation split from the training folders.
+
+## Runs To Report
+
+DFN2B zero-shot:
 
 ```powershell
-python attention_quantitative_eval.py --per-country 30 --out-dir paper_assets/quant_attention --batch-note sampled_30_per_country
+python train_clip_country.py `
+  --data-root TRAIN_DATASET/koglab_levi `
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 `
+  --zero-shot-only `
+  --batch-size 256 `
+  --num-workers 8 `
+  --prefetch-factor 4 `
+  --amp-dtype bf16
 ```
 
-For the full test-set analysis, use `--per-country 0`.
-
-Compile the Hungarian report:
+DFN2B fine-tune:
 
 ```powershell
-pdflatex -interaction=nonstopmode paper_hu.tex
+python train_clip_country.py `
+  --data-root TRAIN_DATASET/koglab_levi `
+  --model-dir MODEL/DFN2B-CLIP-ViT-B-16 `
+  --epochs 12 `
+  --batch-size 192 `
+  --unfreeze-visual-layers -1 `
+  --lr-visual 1e-5 `
+  --lr-logit-scale 5e-5 `
+  --layer-decay 0.75 `
+  --label-smoothing 0.05 `
+  --proj-l2 1e-4 `
+  --amp-dtype bf16 `
+  --num-workers 8 `
+  --prefetch-factor 4
 ```
 
-Train a CLIP-style timm backbone on a prepared `data/train`, `data/val`, `data/test` layout:
+StreetCLIP fine-tune:
 
 ```powershell
-python train.py --data-root data --backbone vit_base_patch16_clip_224 --img-size 224 --epochs 20 --batch-size 128 --lr-backbone 2e-5 --lr-head 5e-4 --amp-dtype bf16
+python Code/train_streetclip_country.py `
+  --data-root TRAIN_DATASET/koglab_levi `
+  --model-dir MODEL/StreetCLIP `
+  --epochs 8 `
+  --batch-size 64 `
+  --grad-accum-steps 2 `
+  --unfreeze-vision-layers 4 `
+  --lr-head 1e-3 `
+  --lr-vision 1e-5 `
+  --amp-dtype bf16 `
+  --num-workers 8 `
+  --prefetch-factor 4 `
+  --attn-implementation sdpa
 ```
 
-Evaluate a trained checkpoint:
-
-```powershell
-python eval.py --ckpt runs/<run-id>/best.pt --data-root data
-```
+Save the resulting `config.json`, `epoch_metrics.csv`, `test_report_*.txt`, `test_predictions_*.csv`, and `confusion_matrix_*.csv` files for the final paper.

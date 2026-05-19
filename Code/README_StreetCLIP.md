@@ -70,7 +70,8 @@ python Code/train_streetclip_country.py \
   --lr-vision 1e-5 \
   --amp-dtype bf16 \
   --num-workers 8 \
-  --prefetch-factor 4
+  --prefetch-factor 4 \
+  --attn-implementation sdpa
 ```
 
 Effective batch size is:
@@ -102,8 +103,15 @@ If it runs out of memory:
 - fused AdamW when available
 - gradient accumulation for a larger effective batch
 - channels-last image tensors
+- PyTorch/Hugging Face SDPA attention by default
 - cosine LR schedule with warmup
 - only the last N vision layers are unfrozen by default
+
+`flash_attention_2` is exposed as an optional flag, but it is not the default because it needs a separate compatible `flash-attn` install. Use it only if the GPU machine already has it working:
+
+```bash
+--attn-implementation flash_attention_2
+```
 
 ## Outputs
 
@@ -122,4 +130,5 @@ config.json
 epoch_metrics.csv
 test_report_streetclip.txt
 test_predictions_streetclip.csv
+confusion_matrix_streetclip.csv
 ```

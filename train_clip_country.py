@@ -73,6 +73,8 @@ class RunConfig:
     epochs: int
     batch_size: int
     grad_accum_steps: int
+    num_workers: int
+    prefetch_factor: int
     lr_visual: float
     lr_logit_scale: float
     weight_decay: float
@@ -406,7 +408,10 @@ def evaluate(
         with autocast(device_type=device.type, dtype=amp_dtype, enabled=amp_dtype is not None):
             logits = clip_logits(model, images, class_text)
             loss = F.cross_entropy(logits, labels)
-        probs = logits.softmax(dim=-1).detach().cpu().numpy()
+        probs_tensor = logits.softmax(dim=-1).detach().cpu()
+        topk_count = min(5, probs_tensor.shape[1])
+        topk_confidences, topk_indices = probs_tensor.topk(topk_count, dim=1)
+        probs = probs_tensor.numpy()
         preds = probs.argmax(axis=1)
         labs = labels.detach().cpu().numpy()
         loss_sum += float(loss.item()) * labels.numel()
@@ -414,12 +419,21 @@ def evaluate(
         total += labels.numel()
         all_labels.extend(labs.tolist())
         all_preds.extend(preds.tolist())
-        for path, lab, pred, prob in zip(paths, labs.tolist(), preds.tolist(), probs):
+        for path, lab, pred, prob, top_idx, top_conf in zip(
+            paths,
+            labs.tolist(),
+            preds.tolist(),
+            probs,
+            topk_indices.tolist(),
+            topk_confidences.tolist(),
+        ):
             rows.append({
                 "file": path,
                 "actual_idx": int(lab),
                 "predicted_idx": int(pred),
                 "confidence": float(prob[pred]),
+                "topk_indices": [int(i) for i in top_idx],
+                "topk_confidences": [float(v) for v in top_conf],
             })
     return correct / max(1, total), loss_sum / max(1, total), rows, np.array(all_labels), np.array(all_preds)
 
@@ -441,23 +455,57 @@ def per_class_report(y_true: np.ndarray, y_pred: np.ndarray, classes: Sequence[s
     return "\n".join(lines) + "\n"
 
 
+def save_confusion_matrix(y_true: np.ndarray, y_pred: np.ndarray, classes: Sequence[str], out_path: Path) -> None:
+    matrix = np.zeros((len(classes), len(classes)), dtype=np.int64)
+    for actual, predicted in zip(y_true.tolist(), y_pred.tolist()):
+        matrix[int(actual), int(predicted)] += 1
+
+    with open(out_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f, delimiter=";")
+        writer.writerow(["actual_country", *classes])
+        for idx, cls in enumerate(classes):
+            writer.writerow([cls, *matrix[idx].tolist()])
+
+
 def save_predictions(rows: List[Dict[str, object]], probs_path: Path, classes: Sequence[str], y_true: np.ndarray, y_pred: np.ndarray) -> None:
     # rows do not carry all probabilities to keep eval memory small; this CSV is
     # therefore a compact detailed prediction file.
     with open(probs_path, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(
             f,
-            fieldnames=["file", "actual_country", "predicted_country", "confidence"],
+            fieldnames=[
+                "file",
+                "actual_country",
+                "predicted_country",
+                "confidence",
+                "top5_countries",
+                "top5_confidences",
+            ],
             delimiter=";",
         )
         writer.writeheader()
         for row in rows:
+            topk_indices = row.get("topk_indices", [])
+            topk_confidences = row.get("topk_confidences", [])
             writer.writerow({
                 "file": row["file"],
                 "actual_country": classes[int(row["actual_idx"])],
                 "predicted_country": classes[int(row["predicted_idx"])],
                 "confidence": f"{float(row['confidence']):.6f}",
+                "top5_countries": "|".join(classes[int(i)] for i in topk_indices),
+                "top5_confidences": "|".join(f"{float(v):.6f}" for v in topk_confidences),
             })
+
+
+def dataloader_kwargs(num_workers: int, prefetch_factor: int) -> Dict[str, object]:
+    kwargs: Dict[str, object] = {
+        "num_workers": num_workers,
+        "pin_memory": torch.cuda.is_available(),
+        "persistent_workers": num_workers > 0,
+    }
+    if num_workers > 0:
+        kwargs["prefetch_factor"] = prefetch_factor
+    return kwargs
 
 
 def load_state_dict_into(model: nn.Module, state: Dict[str, torch.Tensor], device: torch.device) -> None:
@@ -507,6 +555,7 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=192)
     ap.add_argument("--grad-accum-steps", type=int, default=1)
     ap.add_argument("--num-workers", type=int, default=8)
+    ap.add_argument("--prefetch-factor", type=int, default=4)
     ap.add_argument("--lr-visual", type=float, default=1e-5)
     ap.add_argument("--lr-logit-scale", type=float, default=5e-5)
     ap.add_argument("--weight-decay", type=float, default=0.05)
@@ -544,6 +593,9 @@ def main() -> None:
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
     torch.set_float32_matmul_precision("high")
+    torch.backends.cuda.matmul.allow_tf32 = True
+    torch.backends.cudnn.allow_tf32 = True
+    torch.backends.cudnn.benchmark = True
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     amp_dtype = parse_amp_dtype(args.amp_dtype)
@@ -569,7 +621,7 @@ def main() -> None:
         val_ds = CountryDataset(val_samples, classes, preprocess_val)
     test_ds = CountryDataset(test_samples, classes, preprocess_val) if test_samples else None
 
-    loader_common = dict(num_workers=args.num_workers, pin_memory=True, persistent_workers=args.num_workers > 0)
+    loader_common = dataloader_kwargs(args.num_workers, args.prefetch_factor)
     train_loader = DataLoader(train_ds, batch_size=args.batch_size, shuffle=True, drop_last=True, **loader_common) if len(train_ds) else None
     val_loader = DataLoader(val_ds, batch_size=args.batch_size, shuffle=False, **loader_common) if len(val_ds) else None
     test_loader = DataLoader(test_ds, batch_size=args.batch_size, shuffle=False, **loader_common) if test_ds is not None and len(test_ds) else None
@@ -594,6 +646,8 @@ def main() -> None:
         epochs=args.epochs,
         batch_size=args.batch_size,
         grad_accum_steps=args.grad_accum_steps,
+        num_workers=args.num_workers,
+        prefetch_factor=args.prefetch_factor,
         lr_visual=args.lr_visual,
         lr_logit_scale=args.lr_logit_scale,
         weight_decay=args.weight_decay,
@@ -618,6 +672,7 @@ def main() -> None:
             print(f"Zero-shot test: acc={acc:.4f} loss={loss:.4f}")
             save_predictions(rows, run_dir / "test_predictions_zero_shot.csv", classes, y_true, y_pred)
             (run_dir / "test_report_zero_shot.txt").write_text(per_class_report(y_true, y_pred, classes), encoding="utf-8")
+            save_confusion_matrix(y_true, y_pred, classes, run_dir / "confusion_matrix_zero_shot.csv")
         return
 
     if train_loader is None or val_loader is None:
@@ -726,6 +781,7 @@ def main() -> None:
         print(f"Best checkpoint test: acc={test_acc:.4f} loss={test_loss:.4f}")
         save_predictions(rows, run_dir / "test_predictions_detailed_clip.csv", classes, y_true, y_pred)
         (run_dir / "test_report_clip.txt").write_text(per_class_report(y_true, y_pred, classes), encoding="utf-8")
+        save_confusion_matrix(y_true, y_pred, classes, run_dir / "confusion_matrix_clip.csv")
 
     alphas = parse_alpha_list(args.wiseft_alphas)
     if alphas and val_loader is not None:

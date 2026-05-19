@@ -4,13 +4,15 @@
 
 Train a CLIP-based Google Street View country classifier and compare it against the previous frozen DINOv2/ViT baseline.
 
-The new code is `train_clip_country.py`. It uses OpenCLIP directly:
+The DFN2B/OpenCLIP code is `train_clip_country.py`. It uses OpenCLIP directly:
 
 - country classes are represented by text prompt prototypes,
 - images are classified by image-text similarity,
 - the text tower is frozen by default,
 - the visual tower is fine-tuned,
 - zero-shot, fine-tuned, and WiSE-FT-style interpolated checkpoints are evaluated.
+
+The StreetCLIP code is `Code/train_streetclip_country.py`. It uses the StreetCLIP image encoder and trains a normal supervised country head. That is less "CLIP-native" than prompt similarity, but it is the cleanest task-specific classifier and likely the best accuracy challenger.
 
 ## Model Choice
 
@@ -54,6 +56,24 @@ https://huggingface.co/laion/CLIP-ViT-B-16-DataComp.XL-s13B-b90K
 
 This is MIT-licensed and reports 73.5% ImageNet zero-shot accuracy.
 
+Task-specific challenger:
+
+```text
+MODEL/StreetCLIP
+```
+
+Manual download page:
+
+```text
+https://huggingface.co/geolocal/StreetCLIP
+```
+
+Why:
+
+- It is trained for street-level geolocation rather than generic web image-text matching.
+- For this project, it should be tested beside DFN2B even though it is larger.
+- The script uses a supervised classifier head because the project labels are countries, not free-form text.
+
 ## Why Not Muon First?
 
 Muon and variants are interesting, but the current evidence is still mostly language-model-centric or fresh-pretraining-oriented. For this project, AdamW with discriminative layer-wise learning rates is the safer high-performance choice. The code uses:
@@ -68,6 +88,8 @@ Muon and variants are interesting, but the current evidence is still mostly lang
 - optional WiSE-FT interpolation.
 
 PyTorch already dispatches scaled dot-product attention to fused CUDA implementations such as FlashAttention when the model/operator path supports it, so the first priority is a clean PyTorch 2.x CUDA install rather than a custom FlashAttention dependency.
+
+StreetCLIP exposes `--attn-implementation sdpa` by default. `flash_attention_2` can be tried only if the GPU environment already has a matching `flash-attn` build.
 
 ## First GPU Commands
 
@@ -117,7 +139,26 @@ python train_clip_country.py `
   --label-smoothing 0.05 `
   --proj-l2 1e-4 `
   --amp-dtype bf16 `
-  --num-workers 8
+  --num-workers 8 `
+  --prefetch-factor 4
+```
+
+StreetCLIP fine-tune:
+
+```powershell
+python Code/train_streetclip_country.py `
+  --data-root TRAIN_DATASET/koglab_levi `
+  --model-dir MODEL/StreetCLIP `
+  --epochs 8 `
+  --batch-size 64 `
+  --grad-accum-steps 2 `
+  --unfreeze-vision-layers 4 `
+  --lr-head 1e-3 `
+  --lr-vision 1e-5 `
+  --amp-dtype bf16 `
+  --num-workers 8 `
+  --prefetch-factor 4 `
+  --attn-implementation sdpa
 ```
 
 Conservative run if full fine-tuning overfits:
@@ -145,4 +186,7 @@ python train_clip_country.py `
 - WiSE-FT repository: https://github.com/mlfoundations/wise-ft
 - WiSE-FT paper: https://arxiv.org/abs/2109.01903
 - PyTorch SDPA tutorial: https://docs.pytorch.org/tutorials/intermediate/scaled_dot_product_attention_tutorial.html
+- PyTorch SDPA API docs: https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html
+- Hugging Face attention backends: https://huggingface.co/docs/transformers/en/attention_interface
+- PIGEON project page: https://lukashaas.github.io/PIGEON-CVPR24/
 - MuonAll paper: https://arxiv.org/abs/2511.06086
