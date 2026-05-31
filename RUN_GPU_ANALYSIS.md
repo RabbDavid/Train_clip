@@ -147,9 +147,13 @@ analysis_outputs/attention_comparison/
   attention_summary_by_model.csv
   attention_summary_by_model_and_correctness.csv
   attention_summary_by_country.csv
+  attention_metric_auc_for_correctness.csv
+  country_accuracy_attention_correlation.csv
   attention_entropy_distribution.png
   attention_entropy_correct_vs_wrong_models.png
   attention_sample_accuracy_by_country.png
+  country_accuracy_vs_attention_entropy.png
+  country_accuracy_vs_top10_mass.png
 ```
 
 ## 4. Optional DINO Reproduction
@@ -215,7 +219,9 @@ python legacy_dino/sae_quick.py \
 SAE caveat: this script trains a sparse autoencoder on final-layer DINO patch
 tokens and produces top-activating patch contact sheets. Prefer fitting it on
 train activations; if only test folders are present, treat it as exploratory
-analysis. These sheets are feature exemplars, not direct object labels.
+analysis. These sheets are feature exemplars, not direct object labels. Use
+`feature_summary.csv` next to the contact sheets to check sparsity,
+country-purity, and positional bias of each SAE feature.
 
 For the paper wording, see `analysis/INTERPRETABILITY_NOTES.md`.
 
@@ -253,11 +259,14 @@ Outputs:
 concept_attention.csv
 concept_attention_summary_by_correctness.csv
 concept_attention_correct_vs_wrong.png
+concept_attention_lift_correct_vs_wrong.png
 concept_attention_summary.txt
 ```
 
 Interpretation caveat: CLIPSeg masks are approximate open-vocabulary masks, not
-manual ground truth segmentation.
+manual ground truth segmentation. Prefer `attention_lift_vs_uniform` when
+discussing concept importance, because raw attention mass is affected by how
+large the predicted mask is.
 
 ## 6. Package Final Outputs
 

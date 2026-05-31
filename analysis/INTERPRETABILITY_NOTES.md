@@ -17,6 +17,14 @@ It should not be presented as a complete causal explanation of the prediction.
 Attention weights can be weak explanations on their own, and rollout is a
 post-hoc diagnostic rather than an intervention.
 
+Also important: the rollout used here is class-agnostic. It measures how patch
+information flows into the global image representation, not specifically which
+pixels supported "Hungary" versus "Poland". Class-specific transformer
+attribution methods usually add gradients/relevance propagation; they are more
+ambitious and more fragile to implement across different CLIP/DINO codepaths.
+For this project, we therefore use rollout as a systematic focus metric and
+avoid claiming it is the full reason for a class decision.
+
 Implementation detail: saved `heatmaps/*.npy` files are normalized attention
 mass. Metrics are computed from this mass, not from display colors. Paper panels
 default to `--heatmap-norm mass`, where the color maximum is a fixed multiple of
@@ -38,6 +46,10 @@ patch activation vector -> sparse feature activations -> reconstructed vector
 The contact-sheet images are a visualization of the feature activations. For a
 given SAE feature, the script finds the patch tokens that activate that feature
 most strongly, then draws yellow boxes around the corresponding image patches.
+`feature_summary.csv` adds basic checks for each feature: activation sparsity,
+top-country concentration, and mean top-patch position. These numbers help catch
+boring features such as "mostly bottom-left patch" or "mostly one country"
+before we over-interpret a contact sheet.
 
 So the correct interpretation is:
 

@@ -70,6 +70,13 @@ def attention_mass(attention: np.ndarray, mask: np.ndarray) -> float:
     return float((attention * mask).sum() / denom)
 
 
+def attention_lift(attention_mass_value: float, mask_mean: float) -> float:
+    """How much more attention lands on the mask than uniform attention would."""
+    if mask_mean <= 1e-12:
+        return 0.0
+    return float(attention_mass_value / mask_mean)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--attention-metrics", type=Path, required=True)
@@ -128,11 +135,15 @@ def main() -> None:
         }
         for concept, mask in zip(concepts, masks):
             mask_np = resize_mask(mask, attention.shape)
+            mass = attention_mass(attention, mask_np)
+            soft_area = float(np.maximum(mask_np, 0).mean())
             rows.append({
                 **base,
                 "concept": concept,
-                "attention_mass": attention_mass(attention, mask_np),
-                "mask_mean": float(mask_np.mean()),
+                "attention_mass": mass,
+                "mask_mean": soft_area,
+                "attention_lift_vs_uniform": attention_lift(mass, soft_area),
+                "attention_excess_vs_uniform": float(mass - soft_area),
                 "mask_coverage_0p5": float((mask_np >= 0.5).mean()),
             })
 
@@ -148,6 +159,8 @@ def main() -> None:
             "concept",
             "attention_mass",
             "mask_mean",
+            "attention_lift_vs_uniform",
+            "attention_excess_vs_uniform",
             "mask_coverage_0p5",
         ]
         writer = csv.DictWriter(f, fieldnames=fieldnames)
@@ -161,6 +174,8 @@ def main() -> None:
     summary = result.groupby(["concept", "correct"]).agg(
         n=("attention_mass", "size"),
         mean_attention_mass=("attention_mass", "mean"),
+        mean_attention_lift_vs_uniform=("attention_lift_vs_uniform", "mean"),
+        mean_attention_excess_vs_uniform=("attention_excess_vs_uniform", "mean"),
         mean_mask_coverage=("mask_coverage_0p5", "mean"),
     ).reset_index()
     summary.to_csv(args.out_dir / "concept_attention_summary_by_correctness.csv", index=False)
@@ -181,6 +196,23 @@ def main() -> None:
     plt.savefig(args.out_dir / "concept_attention_correct_vs_wrong.png", dpi=180)
     plt.close()
 
+    lift_pivot = summary.pivot(index="concept", columns="correct", values="mean_attention_lift_vs_uniform").fillna(0)
+    lift_pivot = lift_pivot.reindex(concepts)
+    plt.figure(figsize=(8, 4.2))
+    x = np.arange(len(lift_pivot))
+    wrong = lift_pivot[False] if False in lift_pivot.columns else np.zeros(len(lift_pivot))
+    correct = lift_pivot[True] if True in lift_pivot.columns else np.zeros(len(lift_pivot))
+    plt.axhline(1.0, color="#333333", linewidth=1.0, linestyle="--", label="uniform expectation")
+    plt.bar(x - 0.18, wrong, width=0.36, label="wrong", color="#999999")
+    plt.bar(x + 0.18, correct, width=0.36, label="correct", color="#D55E00")
+    plt.xticks(x, lift_pivot.index, rotation=35, ha="right")
+    plt.ylabel("attention lift vs uniform")
+    plt.title("Concept attention normalized by mask size")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(args.out_dir / "concept_attention_lift_correct_vs_wrong.png", dpi=180)
+    plt.close()
+
     lines = [
         "Concept attention summary",
         "=" * 60,
@@ -191,6 +223,7 @@ def main() -> None:
         "",
         "Interpretation note:",
         "Saved rollout heatmaps are normalized attention mass. These CLIPSeg masks are open-vocabulary predictions, not manually verified semantic labels.",
+        "Raw attention mass is affected by mask size; attention lift compares mass to the uniform-attention expectation, where 1.0 means no enrichment.",
         "Use the numbers as approximate ontology-level evidence, not as proof that an object caused the prediction.",
     ]
     (args.out_dir / "concept_attention_summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")

@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 
 import matplotlib
@@ -17,6 +18,28 @@ def read_metrics(path: Path, label: str) -> pd.DataFrame:
     df["model_label"] = label
     df["correct"] = df["correct"].astype(str).str.lower().isin(["true", "1", "yes"])
     return df
+
+
+def safe_auc(y: np.ndarray, score: np.ndarray) -> float | None:
+    if len(np.unique(y)) < 2:
+        return None
+    y = np.asarray(y).astype(int)
+    score = np.asarray(score, dtype=np.float64)
+    n_pos = int((y == 1).sum())
+    n_neg = int((y == 0).sum())
+    if n_pos == 0 or n_neg == 0:
+        return None
+    ranks = pd.Series(score).rank(method="average").to_numpy()
+    rank_sum_pos = float(ranks[y == 1].sum())
+    return float((rank_sum_pos - n_pos * (n_pos + 1) / 2.0) / (n_pos * n_neg))
+
+
+def metric_direction(metric: str) -> str:
+    if "entropy" in metric:
+        return "lower means more concentrated"
+    if "mass" in metric or "peak" in metric:
+        return "higher means more concentrated"
+    return "higher score direction"
 
 
 def main() -> None:
@@ -61,6 +84,45 @@ def main() -> None:
         mean_top10_mass=("attention_top10pct_mass", "mean"),
     ).reset_index()
     by_country.to_csv(args.out_dir / "attention_summary_by_country.csv", index=False)
+
+    metric_cols = [
+        "confidence",
+        "attention_entropy",
+        "attention_top1pct_mass",
+        "attention_top5pct_mass",
+        "attention_top10pct_mass",
+        "attention_peak_to_mean",
+    ]
+    auc_rows = []
+    for model, part in df.groupby("model_label"):
+        y = part["correct"].astype(int).to_numpy()
+        for metric in metric_cols:
+            if metric not in part.columns:
+                continue
+            auc = safe_auc(y, part[metric].to_numpy())
+            auc_rows.append({
+                "model_label": model,
+                "metric": metric,
+                "auc_for_correct_prediction": "" if auc is None else f"{auc:.4f}",
+                "direction_note": metric_direction(metric),
+            })
+    auc_df = pd.DataFrame(auc_rows)
+    auc_df.to_csv(args.out_dir / "attention_metric_auc_for_correctness.csv", index=False)
+
+    corr_rows = []
+    for model, part in by_country.groupby("model_label"):
+        for metric in ["mean_entropy", "mean_top10_mass"]:
+            if len(part) < 3:
+                continue
+            corr_rows.append({
+                "model_label": model,
+                "metric": metric,
+                "pearson_corr_with_country_accuracy": f"{part['accuracy'].corr(part[metric], method='pearson'):.4f}",
+                "spearman_corr_with_country_accuracy": f"{part['accuracy'].corr(part[metric], method='spearman'):.4f}",
+                "n_countries": int(part["actual_country"].nunique()),
+            })
+    corr_df = pd.DataFrame(corr_rows)
+    corr_df.to_csv(args.out_dir / "country_accuracy_attention_correlation.csv", index=False)
 
     plt.figure(figsize=(6, 3.5))
     for model, color in [("DFN2B-CLIP", "#0072B2"), ("StreetCLIP", "#D55E00")]:
@@ -109,6 +171,22 @@ def main() -> None:
     plt.savefig(args.out_dir / "attention_sample_accuracy_by_country.png", dpi=180)
     plt.close()
 
+    for metric, filename, xlabel in [
+        ("mean_entropy", "country_accuracy_vs_attention_entropy.png", "mean attention entropy"),
+        ("mean_top10_mass", "country_accuracy_vs_top10_mass.png", "mean top-10% attention mass"),
+    ]:
+        plt.figure(figsize=(6.4, 4.2))
+        for model, color in [("DFN2B-CLIP", "#0072B2"), ("StreetCLIP", "#D55E00")]:
+            part = by_country[by_country["model_label"] == model]
+            plt.scatter(part[metric], part["accuracy"], s=46, alpha=0.75, label=model, color=color)
+        plt.xlabel(xlabel)
+        plt.ylabel("sampled country accuracy")
+        plt.title("Country accuracy vs attention focus")
+        plt.legend()
+        plt.tight_layout()
+        plt.savefig(args.out_dir / filename, dpi=180)
+        plt.close()
+
     lines = [
         "Attention comparison summary",
         "=" * 60,
@@ -119,8 +197,15 @@ def main() -> None:
         "By model and correctness:",
         by_correct.to_string(),
         "",
+        "Metric AUC for correct prediction:",
+        auc_df.to_string(index=False),
+        "",
+        "Country-level attention/performance correlation:",
+        corr_df.to_string(index=False),
+        "",
         "Interpretation note:",
-        "Lower entropy means the rollout is more spatially concentrated. This is a focus metric, not a proof of causal importance.",
+        "Lower entropy means the rollout is more spatially concentrated. AUC values near 0.5 mean little association with correctness.",
+        "These are focus/performance associations, not proof of causal importance.",
     ]
     (args.out_dir / "attention_comparison_summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"Wrote comparison outputs to {args.out_dir}")

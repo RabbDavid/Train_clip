@@ -11,9 +11,11 @@ from __future__ import annotations
 import argparse
 import csv
 import random
+import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 import torch
@@ -22,6 +24,7 @@ from PIL import Image, ImageDraw
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from load_levi_dino_h5 import CLASSMATE_CLASSES, build_model_from_h5
 
 
@@ -149,6 +152,39 @@ def make_contact_sheet(rows: Sequence[Tuple[float, TokenRecord]], out_path: Path
     canvas.save(out_path, quality=92)
 
 
+def summarize_sae_features(z: torch.Tensor, records: Sequence[TokenRecord], top_k: int) -> List[Dict[str, object]]:
+    """Summarize SAE features so contact sheets are backed by numbers."""
+    out: List[Dict[str, object]] = []
+    n_tokens = z.shape[0]
+    k = min(top_k, n_tokens)
+    for feat in range(z.shape[1]):
+        values = z[:, feat]
+        active = values > 0
+        active_count = int(active.sum().item())
+        top_scores, top_idxs = torch.topk(values, k=k)
+        positive_pairs = [(float(score), int(idx)) for score, idx in zip(top_scores.tolist(), top_idxs.tolist()) if score > 0]
+        countries = [records[idx].country for _, idx in positive_pairs]
+        counts = Counter(countries)
+        top_country, top_country_count = counts.most_common(1)[0] if counts else ("", 0)
+        rows = [records[idx].row for _, idx in positive_pairs]
+        cols = [records[idx].col for _, idx in positive_pairs]
+        out.append({
+            "feature": feat,
+            "max_activation": f"{float(values.max().item()):.6f}",
+            "mean_activation": f"{float(values.mean().item()):.6f}",
+            "active_rate": f"{active_count / max(1, n_tokens):.6f}",
+            "active_count": active_count,
+            "top_k_positive": len(positive_pairs),
+            "top_country": top_country,
+            "top_country_fraction": f"{top_country_count / max(1, len(positive_pairs)):.6f}",
+            "top_countries": "|".join(f"{country}:{count}" for country, count in counts.most_common(5)),
+            "top_patch_row_mean": "" if not rows else f"{float(np.mean(rows)):.3f}",
+            "top_patch_col_mean": "" if not cols else f"{float(np.mean(cols)):.3f}",
+            "top_score_mean": "" if not positive_pairs else f"{float(np.mean([score for score, _ in positive_pairs])):.6f}",
+        })
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--h5", type=Path, default=Path("dino_geo_28_countries_full.weights.h5"))
@@ -166,6 +202,8 @@ def main() -> None:
     ap.add_argument("--l1", type=float, default=5e-2)
     ap.add_argument("--top-k-features", type=int, default=12)
     ap.add_argument("--top-k-patches", type=int, default=10)
+    ap.add_argument("--feature-summary-top-k", type=int, default=50,
+                    help="top patches used for feature purity/position summaries")
     ap.add_argument("--seed", type=int, default=7)
     args = ap.parse_args()
 
@@ -223,6 +261,13 @@ def main() -> None:
     with torch.no_grad():
         _, z = sae(tokens_n.to(device))
         z = z.cpu()
+
+    feature_summary = summarize_sae_features(z, records, args.feature_summary_top_k)
+    with open(args.out_dir / "feature_summary.csv", "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(feature_summary[0].keys()), delimiter=";")
+        writer.writeheader()
+        writer.writerows(feature_summary)
+
     feature_strength = z.max(dim=0).values
     feature_ids = torch.topk(feature_strength, k=min(args.top_k_features, z.shape[1])).indices.tolist()
 
@@ -257,12 +302,17 @@ def main() -> None:
         f"tokens: {len(records)}",
         f"input dimension: {tokens_n.shape[1]}",
         f"hidden SAE features: {args.hidden}",
+        f"feature summary top-k patches: {args.feature_summary_top_k}",
         "",
         "Interpretation:",
         "The SAE is trained on DINO patch-token activations. The yellow boxes in",
         "feature contact sheets are the image patches whose internal activations",
         "most strongly activate a sparse feature. They are feature exemplars, not",
         "direct object labels and not causal explanations by themselves.",
+        "",
+        "Use feature_summary.csv to check whether a feature is sparse, whether its",
+        "top patches concentrate in one country, and whether it has a positional",
+        "bias. Contact sheets should be interpreted together with these numbers.",
     ]
     (args.out_dir / "SAE_INTERPRETATION_NOTE.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")
     print(f"saved SAE outputs to {args.out_dir}")
