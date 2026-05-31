@@ -15,12 +15,15 @@ Train_clip/
     README_StreetCLIP.md
   analysis/
     attention_rollout_clip.py
+    preflight_check.py
+    run_gpu_analysis_workflow.py
     summarize_attention_runs.py
     object_concept_attention.py
     package_final_outputs.py
   legacy_dino/
     attention_quantitative_eval.py
     run_viz.py
+    sae_quick.py
   RUN_GPU_ANALYSIS.md
   MODEL/
     DFN2B-CLIP-ViT-B-16/

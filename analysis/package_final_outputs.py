@@ -87,6 +87,8 @@ def main() -> None:
         ignore = shutil.ignore_patterns("*.npy")
         shutil.copytree(args.analysis_root, analysis_out, ignore=ignore)
 
+    copy_if_exists(Path("preflight_report.txt"), args.out_dir / "preflight_report.txt")
+
     env_text = [
         "Python",
         sys.version,

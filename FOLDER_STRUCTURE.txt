@@ -20,6 +20,12 @@ Train_clip/
       StreetCLIP-specific setup and run notes.
 
   analysis/
+    preflight_check.py
+      Checks data/model/checkpoint/package availability before long GPU runs.
+
+    run_gpu_analysis_workflow.py
+      One-command wrapper for the whole post-training analysis workflow.
+
     attention_rollout_clip.py
       Generates CLIP attention rollout heatmaps, qualitative panels, and
       quantitative focus metrics.
@@ -42,6 +48,9 @@ Train_clip/
 
     run_viz.py
       Qualitative DINO rollout figures.
+
+    sae_quick.py
+      DINO sparse autoencoder experiment on final-layer patch tokens.
 
     attention_viz.py, load_classmate_h5.py
       DINO helper code. Requires the local dino_geo_28_countries_full.weights.h5

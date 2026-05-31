@@ -22,6 +22,12 @@ Main workflow:
    - collects training outputs, analysis outputs, environment info, and repo info
      into `FINAL_RESULTS_CLIP_COUNTRY.zip`.
 
+5. `preflight_check.py`
+   - checks that data, model folders, checkpoints, and Python packages exist.
+
+6. `run_gpu_analysis_workflow.py`
+   - one-command wrapper for the GPU-side remote run.
+
 Full commands are in:
 
 ```text

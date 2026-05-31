@@ -33,6 +33,35 @@ Train_clip/
 
 If the run folder names differ, replace them in the commands below.
 
+## 1A. Simplest One-Command Workflow
+
+First run the preflight check:
+
+```bash
+python analysis/preflight_check.py
+```
+
+Then run the main attention workflow:
+
+```bash
+python analysis/run_gpu_analysis_workflow.py --skip-concepts
+```
+
+If CLIPSeg concept attribution is also desired and internet/model cache is
+available:
+
+```bash
+python analysis/run_gpu_analysis_workflow.py --run-concepts
+```
+
+If the DINO `.h5` weights are present and DINO reproduction should also run:
+
+```bash
+python analysis/run_gpu_analysis_workflow.py --skip-concepts --run-dino
+```
+
+The sections below show the same steps manually.
+
 ## 2. Run Attention Rollout Metrics
 
 StreetCLIP:
@@ -140,6 +169,22 @@ python legacy_dino/run_viz.py \
 
 This keeps the DINO comparison reproducible without committing the large `.h5`
 weights file.
+
+For the older DINO SAE experiment:
+
+```bash
+python legacy_dino/sae_quick.py \
+  --h5 dino_geo_28_countries_full.weights.h5 \
+  --data-root TRAIN_DATASET/koglab_levi \
+  --out-dir analysis_outputs/dino_sae \
+  --max-per-country 60 \
+  --patches-per-image 16 \
+  --epochs 12
+```
+
+SAE caveat: this script trains a sparse autoencoder on final-layer DINO patch
+tokens and produces top-activating patch contact sheets. These sheets are
+feature exemplars, not direct object labels.
 
 ## 5. Optional Object/Concept Attribution
 
