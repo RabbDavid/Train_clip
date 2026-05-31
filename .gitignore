@@ -7,6 +7,9 @@ TRAIN_DATASET/
 data/
 runs_clip/
 runs_streetclip/
+analysis_outputs/
+FINAL_RESULTS/
+FINAL_RESULTS_CLIP_COUNTRY.zip
 MODEL/
 *.pt
 *.pth

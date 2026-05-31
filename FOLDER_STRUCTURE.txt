@@ -19,6 +19,34 @@ Train_clip/
     README_StreetCLIP.md
       StreetCLIP-specific setup and run notes.
 
+  analysis/
+    attention_rollout_clip.py
+      Generates CLIP attention rollout heatmaps, qualitative panels, and
+      quantitative focus metrics.
+
+    summarize_attention_runs.py
+      Compares StreetCLIP and DFN2B attention metrics.
+
+    object_concept_attention.py
+      Optional CLIPSeg ontology analysis: road, sky, trees, buildings, signs.
+
+    package_final_outputs.py
+      Collects run artifacts, analysis outputs, environment info, and a zip.
+
+  RUN_GPU_ANALYSIS.md
+    Exact commands for the GPU-side friend to run after pulling the repo.
+
+  legacy_dino/
+    attention_quantitative_eval.py
+      Quantitative attention-rollout metrics for the older DINO/ViT model.
+
+    run_viz.py
+      Qualitative DINO rollout figures.
+
+    attention_viz.py, load_classmate_h5.py
+      DINO helper code. Requires the local dino_geo_28_countries_full.weights.h5
+      file, which is not committed.
+
   CLIP_FINETUNE_PLAN.md
     Research and reasoning notes for model choice and training strategy.
 

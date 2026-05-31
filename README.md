@@ -13,6 +13,15 @@ Train_clip/
   Code/
     train_streetclip_country.py
     README_StreetCLIP.md
+  analysis/
+    attention_rollout_clip.py
+    summarize_attention_runs.py
+    object_concept_attention.py
+    package_final_outputs.py
+  legacy_dino/
+    attention_quantitative_eval.py
+    run_viz.py
+  RUN_GPU_ANALYSIS.md
   MODEL/
     DFN2B-CLIP-ViT-B-16/
       open_clip_config.json
@@ -211,3 +220,15 @@ Both trainers use PyTorch with bf16 AMP, fused AdamW when available, cosine LR w
 StreetCLIP defaults to Hugging Face/PyTorch `sdpa` attention. `--attn-implementation flash_attention_2` is optional only if the GPU machine already has a compatible `flash-attn` install.
 
 We intentionally keep AdamW instead of Muon for this repo. Muon is interesting, but for small supervised fine-tuning of AdamW-pretrained public checkpoints, AdamW is the clearer and more stable choice.
+
+## Post-Training Analysis
+
+After both models are trained, run the interpretability and quantitative scripts from:
+
+```text
+RUN_GPU_ANALYSIS.md
+```
+
+Those scripts generate attention rollout examples, attention focus metrics, optional CLIPSeg concept attribution, and a packaged `FINAL_RESULTS_CLIP_COUNTRY.zip`.
+
+The `legacy_dino/` folder contains the earlier DINO/ViT-S/14 attention scripts. They require the local `dino_geo_28_countries_full.weights.h5` file, which is intentionally not committed.

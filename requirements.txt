@@ -1,5 +1,6 @@
 torch>=2.4
 torchvision>=0.19
+timm>=1.0.11
 open_clip_torch>=3.3.0
 transformers>=4.45
 numpy>=2.0
@@ -8,3 +9,6 @@ pillow>=10.0
 tqdm>=4.66
 safetensors>=0.4
 huggingface-hub>=0.24
+matplotlib>=3.8
+seaborn>=0.13
+h5py>=3.10
