@@ -4,6 +4,52 @@ This file is the exact request for the person/Claude controlling the GPU
 machine. The goal is to run the final analysis and send back the artifacts
 needed for one final PDF.
 
+## One-Shot Instruction For Claude
+
+If you are Claude on Bende's GPU machine: read this whole file, then execute the
+workflow autonomously end to end. Do not stop after explaining. Do the setup,
+verify paths, run preflight, run the final analysis, package outputs, check that
+the required files exist, and report exactly what succeeded or failed.
+
+Use reasonable path fixes if folders are named slightly differently. If a
+required asset is missing, search nearby folders first. Only stop if the dataset,
+Levi weights, or CLIP run checkpoints are genuinely unavailable.
+
+## Assets Bende Must Have Before Starting
+
+Code:
+
+```text
+https://github.com/RabbDavid/Train_clip.git
+```
+
+Levi transfer zip from David:
+
+```text
+LEVI_DINO_FOR_BENDE.zip
+```
+
+This zip contains:
+
+```text
+Modellek, scriptek/
+Results/
+BENDE_GPU_RUN_REQUEST.md
+```
+
+Also required for the full run:
+
+```text
+TRAIN_DATASET/koglab_levi/
+runs_clip/<run with best.pt>/
+runs_streetclip/<run with best.pt>/
+MODEL/DFN2B-CLIP-ViT-B-16/
+MODEL/StreetCLIP/
+```
+
+If only Levi interpretation is requested, the CLIP model/run folders are not
+needed; use the Levi-only fallback section near the bottom.
+
 ## What We Need Back
 
 Send back:
@@ -75,8 +121,22 @@ they are somewhere else, use those paths in the commands below.
 
 ## Step 1. Pull Code And Install
 
+If the repo is not cloned yet:
+
+```bash
+git clone https://github.com/RabbDavid/Train_clip.git
+cd Train_clip
+```
+
+If it is already cloned:
+
 ```bash
 git pull
+```
+
+Then install:
+
+```bash
 pip install -r requirements.txt
 ```
 
@@ -96,6 +156,28 @@ Verify GPU:
 
 ```bash
 python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.cuda.get_device_name(0))"
+```
+
+## Step 1A. Unzip Levi Transfer Zip
+
+Put `LEVI_DINO_FOR_BENDE.zip` in or near the repo root. Extract it so these
+exist:
+
+```text
+Train_clip/Modellek, scriptek/5_dino_geo.weights.h5
+Train_clip/Results/5_test_predictions_detailed.csv
+```
+
+PowerShell example:
+
+```powershell
+Expand-Archive -Path .\LEVI_DINO_FOR_BENDE.zip -DestinationPath . -Force
+```
+
+Bash example:
+
+```bash
+unzip -o LEVI_DINO_FOR_BENDE.zip -d .
 ```
 
 ## Step 2. Preflight
@@ -220,6 +302,29 @@ analysis_outputs/dino_sae/SAE_INTERPRETATION_NOTE.txt
 analysis_outputs/levi_dino_comparison/comparison_summary.txt
 FINAL_RESULTS_CLIP_COUNTRY.zip
 ```
+
+## Levi-Only Fallback
+
+If the CLIP folders/checkpoints are missing, still run Levi interpretability.
+This needs only:
+
+```text
+legacy_dino/
+TRAIN_DATASET/koglab_levi/
+Modellek, scriptek/5_dino_geo.weights.h5
+Results/
+```
+
+Run:
+
+```bash
+python legacy_dino/attention_quantitative_eval.py --h5 "Modellek, scriptek/5_dino_geo.weights.h5" --data-root TRAIN_DATASET/koglab_levi --out-dir analysis_outputs/dino_attention --per-country 120 --batch-note levi_dino5_sampled_120_per_country
+python legacy_dino/run_viz.py --h5 "Modellek, scriptek/5_dino_geo.weights.h5" --data-root TRAIN_DATASET/koglab_levi --out-dir analysis_outputs/dino_examples --per-country 2 --misclassified 1 --heatmap-norm mass
+python legacy_dino/sae_quick.py --h5 "Modellek, scriptek/5_dino_geo.weights.h5" --data-root TRAIN_DATASET/koglab_levi --out-dir analysis_outputs/dino_sae --split train --max-per-country 200 --patches-per-image 64 --hidden 4096 --epochs 20
+python analysis/compare_levi_dino_results.py --levi-results-dir Results --out-dir analysis_outputs/levi_dino_comparison
+```
+
+Then zip `analysis_outputs/` manually if the final package script cannot run.
 
 ## Do Not Do These
 
