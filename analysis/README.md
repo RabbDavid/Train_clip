@@ -28,6 +28,10 @@ Main workflow:
 6. `run_gpu_analysis_workflow.py`
    - one-command wrapper for the GPU-side remote run.
 
+7. `compare_levi_dino_results.py`
+   - compares Levi's exported DINO prediction CSVs with DFN2B/StreetCLIP
+     prediction CSVs.
+
 Full commands are in:
 
 ```text

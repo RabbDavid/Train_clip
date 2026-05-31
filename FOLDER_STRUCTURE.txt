@@ -56,6 +56,10 @@ Train_clip/
       DINO helper code. Requires the local dino_geo_28_countries_full.weights.h5
       file, which is not committed.
 
+    load_levi_dino_h5.py
+      Auto-detects Levi's older DINO head and newer pyramid-head DINO model
+      weights, including 5_dino_geo.weights.h5.
+
   CLIP_FINETUNE_PLAN.md
     Research and reasoning notes for model choice and training strategy.
 

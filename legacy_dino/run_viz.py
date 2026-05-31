@@ -28,7 +28,7 @@ import torch
 from PIL import Image
 
 from attention_viz import enable_attention_capture, make_figure, per_head_grid_image
-from load_classmate_h5 import CLASSMATE_CLASSES, GeoClassifier, load_from_h5
+from load_levi_dino_h5 import CLASSMATE_CLASSES, build_model_from_h5
 
 
 COUNTRY_ALIASES = {"columbia": "colombia"}
@@ -79,8 +79,7 @@ def main():
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
     print(f"Loading model from {args.h5}")
-    model = GeoClassifier(num_classes=len(CLASSMATE_CLASSES))
-    load_from_h5(model, args.h5)
+    model = build_model_from_h5(args.h5, num_classes=len(CLASSMATE_CLASSES))
     model.eval()
     enable_attention_capture(model)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

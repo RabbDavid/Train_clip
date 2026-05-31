@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw
 from torch import nn
 from torch.utils.data import DataLoader, TensorDataset
 
-from load_classmate_h5 import CLASSMATE_CLASSES, GeoClassifier, load_from_h5
+from load_levi_dino_h5 import CLASSMATE_CLASSES, build_model_from_h5
 
 
 MEAN = np.array((0.485, 0.456, 0.406), dtype=np.float32)
@@ -81,7 +81,7 @@ def preprocess(path: Path, img_size: int, device: torch.device) -> torch.Tensor:
 
 
 @torch.no_grad()
-def final_patch_tokens(model: GeoClassifier, x: torch.Tensor) -> torch.Tensor:
+def final_patch_tokens(model: nn.Module, x: torch.Tensor) -> torch.Tensor:
     feats = model.backbone.forward_features(x)
     if isinstance(feats, dict):
         if "x_norm_patchtokens" in feats:
@@ -92,7 +92,7 @@ def final_patch_tokens(model: GeoClassifier, x: torch.Tensor) -> torch.Tensor:
 
 
 def collect_tokens(
-    model: GeoClassifier,
+    model: nn.Module,
     images: Sequence[Tuple[Path, str]],
     img_size: int,
     patches_per_image: int,
@@ -161,8 +161,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = GeoClassifier(num_classes=len(CLASSMATE_CLASSES))
-    load_from_h5(model, args.h5)
+    model = build_model_from_h5(args.h5, num_classes=len(CLASSMATE_CLASSES))
     model.to(device).eval()
 
     images = list_test_images(args.data_root, args.max_per_country, args.seed)

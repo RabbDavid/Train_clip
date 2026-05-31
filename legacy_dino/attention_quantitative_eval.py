@@ -28,7 +28,7 @@ from PIL import Image
 from tqdm import tqdm
 
 from attention_viz import attention_rollout, cls_to_patch_grid, enable_attention_capture, get_attention_maps
-from load_classmate_h5 import CLASSMATE_CLASSES, GeoClassifier, load_from_h5
+from load_levi_dino_h5 import CLASSMATE_CLASSES, build_model_from_h5
 
 
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
@@ -111,7 +111,7 @@ def rollout_metrics(grid: np.ndarray) -> Dict[str, float]:
 
 @torch.no_grad()
 def score_image(
-    model: GeoClassifier,
+    model: torch.nn.Module,
     path: Path,
     actual: str,
     img_size: int,
@@ -232,8 +232,7 @@ def main() -> None:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    model = GeoClassifier(num_classes=len(CLASSMATE_CLASSES))
-    load_from_h5(model, args.h5)
+    model = build_model_from_h5(args.h5, num_classes=len(CLASSMATE_CLASSES))
     model.to(device).eval()
     enable_attention_capture(model)
 

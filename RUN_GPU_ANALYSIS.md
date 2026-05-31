@@ -138,17 +138,24 @@ The previous DINO/ViT-S/14 classifier tools are included in:
 legacy_dino/
 ```
 
-They require the classmate Keras/PyTorch-backend weights file:
+They require a Keras/PyTorch-backend DINO weights file. For Levi's newest model,
+use:
+
+```text
+Modellek, scriptek/5_dino_geo.weights.h5
+```
+
+For the older copied model, use:
 
 ```text
 dino_geo_28_countries_full.weights.h5
 ```
 
-Place that file in the repo root, then run:
+Then run:
 
 ```bash
 python legacy_dino/attention_quantitative_eval.py \
-  --h5 dino_geo_28_countries_full.weights.h5 \
+  --h5 "Modellek, scriptek/5_dino_geo.weights.h5" \
   --data-root TRAIN_DATASET/koglab_levi \
   --out-dir analysis_outputs/dino_attention \
   --per-country 60 \
@@ -159,7 +166,7 @@ For qualitative DINO examples:
 
 ```bash
 python legacy_dino/run_viz.py \
-  --h5 dino_geo_28_countries_full.weights.h5 \
+  --h5 "Modellek, scriptek/5_dino_geo.weights.h5" \
   --data-root TRAIN_DATASET/koglab_levi \
   --out-dir analysis_outputs/dino_examples \
   --per-country 2 \
@@ -174,7 +181,7 @@ For the older DINO SAE experiment:
 
 ```bash
 python legacy_dino/sae_quick.py \
-  --h5 dino_geo_28_countries_full.weights.h5 \
+  --h5 "Modellek, scriptek/5_dino_geo.weights.h5" \
   --data-root TRAIN_DATASET/koglab_levi \
   --out-dir analysis_outputs/dino_sae \
   --max-per-country 60 \
@@ -264,3 +271,27 @@ design. We should not invent a test-over-epochs graph.
 
 Attention rollout is a spatial focus diagnostic. It is useful evidence, but it
 is not a causal proof of why the model predicted a class.
+
+## 7. Optional Levi DINO Result Comparison
+
+If Levi's `Results/` folder is available, compare his six DINO variants against
+our CLIP models without rerunning inference:
+
+```bash
+python analysis/compare_levi_dino_results.py \
+  --levi-results-dir Results \
+  --streetclip-pred runs_streetclip/20260519-221734/test_predictions_streetclip.csv \
+  --dfn2b-pred runs_clip/20260519-213048/test_predictions_detailed_clip.csv \
+  --out-dir analysis_outputs/levi_dino_comparison
+```
+
+Outputs:
+
+```text
+analysis_outputs/levi_dino_comparison/
+  overall_model_comparison.csv
+  per_country_model_comparison.csv
+  overall_model_comparison.png
+  per_country_best_model_comparison.png
+  comparison_summary.txt
+```

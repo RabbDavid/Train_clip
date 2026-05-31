@@ -234,4 +234,4 @@ RUN_GPU_ANALYSIS.md
 
 Those scripts generate attention rollout examples, attention focus metrics, optional CLIPSeg concept attribution, and a packaged `FINAL_RESULTS_CLIP_COUNTRY.zip`.
 
-The `legacy_dino/` folder contains the earlier DINO/ViT-S/14 attention scripts. They require the local `dino_geo_28_countries_full.weights.h5` file, which is intentionally not committed.
+The `legacy_dino/` folder contains the DINO/ViT-S/14 attention and SAE scripts. It can load the older `dino_geo_28_countries_full.weights.h5` file or Levi's newer `5_dino_geo.weights.h5` pyramid-head model. Weight files are intentionally not committed.
