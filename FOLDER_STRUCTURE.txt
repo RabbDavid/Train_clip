@@ -50,6 +50,10 @@ Train_clip/
     The intended structure of the final one-PDF report and the exact artifacts
     needed to write it.
 
+  LOCAL_LEVI_DINO_NOTES.md
+    David laptop notes for the already-downloaded Levi DINO zips, local smoke
+    attention rollout, and tiny SAE smoke test.
+
   legacy_dino/
     attention_quantitative_eval.py
       Quantitative attention-rollout metrics for the older DINO/ViT model.

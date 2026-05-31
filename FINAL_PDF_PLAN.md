@@ -67,11 +67,32 @@ interpretability wording.
    - Avoid: "the SAE proves the model predicted country X because of object Y."
 
 9. How is the work reproducible?
-   - Include GitHub URL.
+   - Include GitHub URL: `https://github.com/RabbDavid/Train_clip.git`.
    - Include exact commit hash from `FINAL_RESULTS/repo_info.txt`.
    - Include `requirements.txt` and `FINAL_RESULTS/environment.txt`.
    - Mention large local assets are not committed: dataset, model folders,
      checkpoints, Levi `.h5` weights.
+
+## External Download Checklist
+
+```text
+GitHub code:
+https://github.com/RabbDavid/Train_clip.git
+
+DFN2B-CLIP:
+https://huggingface.co/apple/DFN2B-CLIP-ViT-B-16
+
+StreetCLIP:
+https://huggingface.co/geolocal/StreetCLIP
+
+Dataset:
+Google Drive folders supplied by the group; extract under TRAIN_DATASET/koglab_levi/
+
+Levi DINO model/results:
+Modellek, scriptek-20260531T190547Z-3-001.zip
+Results-20260531T190638Z-3-001.zip
+KogLab_DINO.docx
+```
 
 ## Required Files From GPU Run
 
@@ -170,4 +191,3 @@ the SAE detected the object
 red means 90 percent importance
 this object caused the prediction
 ```
-

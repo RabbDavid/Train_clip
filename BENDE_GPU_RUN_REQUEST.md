@@ -29,6 +29,12 @@ If any file is missing, say exactly which one and why.
 
 ## Expected Folder Layout On The GPU Machine
 
+GitHub repo:
+
+```text
+https://github.com/RabbDavid/Train_clip.git
+```
+
 Run everything from the repo root:
 
 ```text

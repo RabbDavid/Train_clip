@@ -85,6 +85,7 @@ def main() -> None:
         Path("README.md"),
         Path("BENDE_GPU_RUN_REQUEST.md"),
         Path("FINAL_PDF_PLAN.md"),
+        Path("LOCAL_LEVI_DINO_NOTES.md"),
         Path("FOLDER_STRUCTURE.txt"),
         Path("RUN_GPU_ANALYSIS.md"),
         Path("requirements.txt"),

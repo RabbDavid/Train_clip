@@ -2,6 +2,34 @@
 
 Fine-tune an OpenCLIP model to classify Google Street View images by country.
 
+GitHub repo:
+
+```text
+https://github.com/RabbDavid/Train_clip.git
+```
+
+## External Downloads
+
+These are required locally but are not committed to GitHub:
+
+```text
+DFN2B-CLIP:
+https://huggingface.co/apple/DFN2B-CLIP-ViT-B-16
+save to MODEL/DFN2B-CLIP-ViT-B-16/
+
+StreetCLIP:
+https://huggingface.co/geolocal/StreetCLIP
+save to MODEL/StreetCLIP/
+
+Google image dataset:
+save to TRAIN_DATASET/koglab_levi/
+
+Levi DINO export:
+Modellek, scriptek-20260531T190547Z-3-001.zip
+Results-20260531T190638Z-3-001.zip
+save/extract as Modellek, scriptek/ and Results/
+```
+
 ## Folder Layout
 
 Put the Google Drive image downloads here after cloning:
@@ -217,6 +245,7 @@ REPRODUCIBILITY.md
 RUN_GPU_ANALYSIS.md
 BENDE_GPU_RUN_REQUEST.md
 FINAL_PDF_PLAN.md
+LOCAL_LEVI_DINO_NOTES.md
 ```
 
 ## Speed Notes
