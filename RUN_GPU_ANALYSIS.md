@@ -47,6 +47,16 @@ Then run the main attention workflow:
 python analysis/run_gpu_analysis_workflow.py --skip-concepts
 ```
 
+The default heatmap display mode is intentionally conservative:
+
+```text
+--heatmap-norm mass --vmax-multiplier 4.0 --heatmap-alpha 0.38 --cmap viridis
+```
+
+This compares colors against a fixed multiple of uniform attention mass instead
+of stretching every image independently to full blue/red contrast. Use
+`--heatmap-norm minmax` only for local debugging, not for paper figures.
+
 If CLIPSeg concept attribution is also desired and internet/model cache is
 available:
 
@@ -76,7 +86,11 @@ python analysis/attention_rollout_clip.py \
   --max-samples-per-country 60 \
   --batch-size 8 \
   --save-panels 80 \
-  --amp-dtype bf16
+  --amp-dtype bf16 \
+  --heatmap-norm mass \
+  --vmax-multiplier 4.0 \
+  --heatmap-alpha 0.38 \
+  --cmap viridis
 ```
 
 DFN2B-CLIP:
@@ -91,7 +105,11 @@ python analysis/attention_rollout_clip.py \
   --max-samples-per-country 60 \
   --batch-size 8 \
   --save-panels 80 \
-  --amp-dtype bf16
+  --amp-dtype bf16 \
+  --heatmap-norm mass \
+  --vmax-multiplier 4.0 \
+  --heatmap-alpha 0.38 \
+  --cmap viridis
 ```
 
 These runs create:
@@ -107,6 +125,10 @@ analysis_outputs/<model>_attention/
   panels/
   heatmaps/
 ```
+
+Important: `heatmaps/*.npy` stores normalized attention mass and is what the
+metrics and CLIPSeg concept attribution use. Panel colors are just a display
+choice saved for human inspection.
 
 ## 3. Compare Attention Runs
 
@@ -184,14 +206,18 @@ python legacy_dino/sae_quick.py \
   --h5 "Modellek, scriptek/5_dino_geo.weights.h5" \
   --data-root TRAIN_DATASET/koglab_levi \
   --out-dir analysis_outputs/dino_sae \
+  --split train \
   --max-per-country 60 \
   --patches-per-image 16 \
   --epochs 12
 ```
 
 SAE caveat: this script trains a sparse autoencoder on final-layer DINO patch
-tokens and produces top-activating patch contact sheets. These sheets are
-feature exemplars, not direct object labels.
+tokens and produces top-activating patch contact sheets. Prefer fitting it on
+train activations; if only test folders are present, treat it as exploratory
+analysis. These sheets are feature exemplars, not direct object labels.
+
+For the paper wording, see `analysis/INTERPRETABILITY_NOTES.md`.
 
 ## 5. Optional Object/Concept Attribution
 

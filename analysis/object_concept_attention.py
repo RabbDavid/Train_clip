@@ -190,7 +190,8 @@ def main() -> None:
         summary.to_string(index=False),
         "",
         "Interpretation note:",
-        "These are open-vocabulary CLIPSeg masks, not manually verified semantic labels. Use them as approximate ontology-level evidence.",
+        "Saved rollout heatmaps are normalized attention mass. These CLIPSeg masks are open-vocabulary predictions, not manually verified semantic labels.",
+        "Use the numbers as approximate ontology-level evidence, not as proof that an object caused the prediction.",
     ]
     (args.out_dir / "concept_attention_summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(f"Wrote {out_csv}")

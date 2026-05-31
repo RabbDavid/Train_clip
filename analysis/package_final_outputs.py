@@ -80,6 +80,17 @@ def main() -> None:
     copy_many(args.streetclip_run, street_out, street_files)
     copy_many(args.dfn2b_run, dfn_out, dfn_files)
 
+    docs_out = args.out_dir / "documentation"
+    for src in [
+        Path("README.md"),
+        Path("FOLDER_STRUCTURE.txt"),
+        Path("RUN_GPU_ANALYSIS.md"),
+        Path("requirements.txt"),
+        Path("analysis/README.md"),
+        Path("analysis/INTERPRETABILITY_NOTES.md"),
+    ]:
+        copy_if_exists(src, docs_out / src.name)
+
     if args.analysis_root.exists():
         analysis_out = args.out_dir / "analysis_outputs"
         if analysis_out.exists():

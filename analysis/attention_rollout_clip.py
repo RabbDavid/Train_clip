@@ -125,14 +125,56 @@ def load_images(paths: Sequence[Path]) -> List[Image.Image]:
     return [Image.open(p).convert("RGB") for p in paths]
 
 
-def normalized_heatmap(values: np.ndarray) -> np.ndarray:
+def finite_nonnegative(values: np.ndarray) -> np.ndarray:
     values = np.asarray(values, dtype=np.float32)
     values = np.nan_to_num(values, nan=0.0, posinf=0.0, neginf=0.0)
+    return np.maximum(values, 0.0)
+
+
+def normalized_heatmap(values: np.ndarray) -> np.ndarray:
+    values = finite_nonnegative(values)
     values = values - values.min()
     denom = values.max()
     if denom > 0:
         values = values / denom
     return values
+
+
+def normalize_mass(values: np.ndarray) -> np.ndarray:
+    values = finite_nonnegative(values)
+    total = float(values.sum())
+    if total > 0:
+        values = values / total
+    return values
+
+
+def display_heatmap(
+    heatmap: np.ndarray,
+    mode: str = "mass",
+    vmax_multiplier: float = 4.0,
+    percentile: float = 99.0,
+) -> np.ndarray:
+    """Map a nonnegative heatmap to [0, 1] for color display.
+
+    The saved heatmaps and metrics use attention mass. Display scaling is kept
+    separate so a tiny local contrast cannot masquerade as a huge attribution
+    difference in the paper figures.
+    """
+    values = finite_nonnegative(heatmap)
+    if mode == "mass":
+        mass = normalize_mass(values)
+        uniform = 1.0 / max(1, mass.size)
+        vmax = uniform * vmax_multiplier
+        return np.clip(mass / max(vmax, 1e-12), 0.0, 1.0)
+    if mode == "percentile":
+        lo = float(values.min())
+        hi = float(np.percentile(values, percentile))
+        if hi - lo <= 1e-12:
+            return np.zeros_like(values)
+        return np.clip((values - lo) / (hi - lo), 0.0, 1.0)
+    if mode == "minmax":
+        return normalized_heatmap(values)
+    raise ValueError(f"Unknown heatmap display mode: {mode}")
 
 
 def heatmap_metrics(heatmap: np.ndarray) -> Dict[str, float]:
@@ -190,20 +232,34 @@ def patch_rollout_to_image(mask: torch.Tensor, image_size: Tuple[int, int]) -> n
     side = int(round(math.sqrt(n_patches)))
     if side * side != n_patches:
         raise ValueError(f"Cannot infer square patch grid from {n_patches} patches")
+    mask = mask.detach().float().clamp_min(0)
+    mask = mask / mask.sum().clamp_min(1e-12)
     grid = mask.reshape(1, 1, side, side)
     resized = F.interpolate(grid, size=(image_size[1], image_size[0]), mode="bilinear", align_corners=False)
-    return normalized_heatmap(resized.squeeze().detach().cpu().numpy())
+    return normalize_mass(resized.squeeze().detach().cpu().numpy())
 
 
-def colorize_heatmap(heatmap: np.ndarray) -> Image.Image:
-    cmap = plt.get_cmap("magma")
-    rgba = cmap(normalized_heatmap(heatmap))
+def colorize_heatmap(
+    heatmap: np.ndarray,
+    norm_mode: str = "mass",
+    vmax_multiplier: float = 4.0,
+    cmap_name: str = "viridis",
+) -> Image.Image:
+    cmap = plt.get_cmap(cmap_name)
+    rgba = cmap(display_heatmap(heatmap, mode=norm_mode, vmax_multiplier=vmax_multiplier))
     arr = (rgba[:, :, :3] * 255).astype(np.uint8)
     return Image.fromarray(arr)
 
 
-def overlay_heatmap(image: Image.Image, heatmap: np.ndarray, alpha: float) -> Image.Image:
-    heat = colorize_heatmap(heatmap).resize(image.size)
+def overlay_heatmap(
+    image: Image.Image,
+    heatmap: np.ndarray,
+    alpha: float,
+    norm_mode: str = "mass",
+    vmax_multiplier: float = 4.0,
+    cmap_name: str = "viridis",
+) -> Image.Image:
+    heat = colorize_heatmap(heatmap, norm_mode=norm_mode, vmax_multiplier=vmax_multiplier, cmap_name=cmap_name).resize(image.size)
     return Image.blend(image.convert("RGB"), heat.convert("RGB"), alpha=alpha)
 
 
@@ -225,12 +281,27 @@ def save_panel(
     heatmap: np.ndarray,
     out_path: Path,
     title: str,
-    alpha: float = 0.45,
+    alpha: float = 0.38,
+    norm_mode: str = "mass",
+    vmax_multiplier: float = 4.0,
+    cmap_name: str = "viridis",
 ) -> None:
     target_w = 420
     image_r = image.resize((target_w, int(image.height * target_w / image.width)))
-    heat_r = colorize_heatmap(heatmap).resize(image_r.size)
-    over_r = overlay_heatmap(image, heatmap, alpha=alpha).resize(image_r.size)
+    heat_r = colorize_heatmap(
+        heatmap,
+        norm_mode=norm_mode,
+        vmax_multiplier=vmax_multiplier,
+        cmap_name=cmap_name,
+    ).resize(image_r.size)
+    over_r = overlay_heatmap(
+        image,
+        heatmap,
+        alpha=alpha,
+        norm_mode=norm_mode,
+        vmax_multiplier=vmax_multiplier,
+        cmap_name=cmap_name,
+    ).resize(image_r.size)
 
     title_h = 54
     gap = 12
@@ -239,7 +310,8 @@ def save_panel(
     panel = Image.new("RGB", (w, h), (250, 250, 250))
     draw = ImageDraw.Draw(panel)
     draw.text((8, 8), title, fill=(20, 20, 20), font=font(20))
-    for idx, (label, part) in enumerate([("image", image_r), ("rollout", heat_r), ("overlay", over_r)]):
+    heat_label = f"rollout ({norm_mode})"
+    for idx, (label, part) in enumerate([("image", image_r), (heat_label, heat_r), ("overlay", over_r)]):
         x = idx * (image_r.width + gap)
         panel.paste(part, (x, title_h))
         draw.text((x + 8, title_h + image_r.height + 5), label, fill=(40, 40, 40), font=font(17))
@@ -410,6 +482,11 @@ def write_summary(metrics_path: Path, out_dir: Path, model_name: str) -> None:
         "",
         "Bottom countries by sampled accuracy:",
         by_country.tail(8).to_string(),
+        "",
+        "Interpretation notes:",
+        "- Heatmap metrics are computed from normalized attention mass, not from per-image display colors.",
+        "- The default panel colors use mass scaling against a fixed multiple of uniform attention, so weak contrasts are not stretched to full red.",
+        "- Attention rollout is a spatial focus diagnostic, not a causal proof of the full decision process.",
     ]
     (out_dir / "attention_summary.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -452,6 +529,12 @@ def main() -> None:
     ap.add_argument("--local-files-only", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--model-name", default="ViT-B-16")
     ap.add_argument("--tokenizer", default=None)
+    ap.add_argument("--heatmap-norm", choices=["mass", "percentile", "minmax"], default="mass",
+                    help="panel color scaling; mass is comparable, minmax is local contrast only")
+    ap.add_argument("--vmax-multiplier", type=float, default=4.0,
+                    help="for mass norm: color max is this times uniform pixel attention mass")
+    ap.add_argument("--heatmap-alpha", type=float, default=0.38)
+    ap.add_argument("--cmap", default="viridis")
     args = ap.parse_args()
 
     random.seed(args.seed)
@@ -507,6 +590,9 @@ def main() -> None:
                 "top5_countries": "|".join(evaluator.classes[int(i)] for i in top_indices[idx].tolist()),
                 "top5_confidences": "|".join(f"{float(v):.6f}" for v in top_values[idx].tolist()),
                 "heatmap_file": str(heat_path),
+                "heatmap_sum": f"{float(np.maximum(heatmap, 0).sum()):.8f}",
+                "heatmap_display_norm": args.heatmap_norm,
+                "heatmap_display_vmax_multiplier": args.vmax_multiplier,
                 **metric_values,
             }
             rows.append(row)
@@ -514,7 +600,16 @@ def main() -> None:
             if panel_count < args.save_panels:
                 title = f"{args.model} | true={actual} pred={predicted} conf={confidence:.2f} correct={correct}"
                 panel_name = f"{panel_count:03d}_{args.model}_{actual}_pred-{predicted}_{safe_stem(path)}.jpg"
-                save_panel(image, heatmap, panel_dir / panel_name, title)
+                save_panel(
+                    image,
+                    heatmap,
+                    panel_dir / panel_name,
+                    title,
+                    alpha=args.heatmap_alpha,
+                    norm_mode=args.heatmap_norm,
+                    vmax_multiplier=args.vmax_multiplier,
+                    cmap_name=args.cmap,
+                )
                 panel_count += 1
 
     metrics_path = args.out_dir / "attention_metrics.csv"

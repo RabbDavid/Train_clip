@@ -59,10 +59,21 @@ def country_from_folder(folder: Path) -> str:
     return name[:-5] if name.endswith("_test") else name
 
 
-def list_test_images(data_root: Path, max_per_country: int, seed: int) -> List[Tuple[Path, str]]:
+def list_images_for_split(data_root: Path, split: str, max_per_country: int, seed: int) -> List[Tuple[Path, str]]:
     rng = random.Random(seed)
     out: List[Tuple[Path, str]] = []
-    for folder in sorted(data_root.glob("*_test")):
+    if split == "train" and (data_root / "train").exists():
+        folders = [p for p in (data_root / "train").iterdir() if p.is_dir()]
+    elif split == "test" and (data_root / "test").exists():
+        folders = [p for p in (data_root / "test").iterdir() if p.is_dir()]
+    elif split == "all":
+        folders = [p for p in data_root.iterdir() if p.is_dir()]
+    elif split == "train":
+        folders = [p for p in data_root.iterdir() if p.is_dir() and not p.name.lower().endswith("_test")]
+    else:
+        folders = [p for p in data_root.iterdir() if p.is_dir() and p.name.lower().endswith("_test")]
+
+    for folder in sorted(folders):
         country = country_from_folder(folder)
         if country not in CLASSMATE_CLASSES:
             continue
@@ -143,6 +154,8 @@ def main() -> None:
     ap.add_argument("--h5", type=Path, default=Path("dino_geo_28_countries_full.weights.h5"))
     ap.add_argument("--data-root", type=Path, default=Path("TRAIN_DATASET/koglab_levi"))
     ap.add_argument("--out-dir", type=Path, default=Path("sae_outputs"))
+    ap.add_argument("--split", choices=["train", "test", "all"], default="train",
+                    help="fit SAE on train activations by default; use test/all only for exploratory analysis")
     ap.add_argument("--img-size", type=int, default=224)
     ap.add_argument("--max-per-country", type=int, default=60)
     ap.add_argument("--patches-per-image", type=int, default=16)
@@ -164,8 +177,15 @@ def main() -> None:
     model = build_model_from_h5(args.h5, num_classes=len(CLASSMATE_CLASSES))
     model.to(device).eval()
 
-    images = list_test_images(args.data_root, args.max_per_country, args.seed)
-    print(f"using {len(images)} images on {device}")
+    split_used = args.split
+    images = list_images_for_split(args.data_root, split_used, args.max_per_country, args.seed)
+    if not images and args.split == "train":
+        print("No train folders found; falling back to test folders for exploratory SAE fitting.")
+        split_used = "test"
+        images = list_images_for_split(args.data_root, split_used, args.max_per_country, args.seed)
+    print(f"using {len(images)} {split_used} images on {device}")
+    if not images:
+        raise SystemExit(f"No images found for split={args.split} under {args.data_root}")
     tokens, records = collect_tokens(model, images, args.img_size, args.patches_per_image, device, args.seed)
     mean = tokens.mean(dim=0, keepdim=True)
     std = tokens.std(dim=0, keepdim=True).clamp_min(1e-5)
@@ -226,8 +246,25 @@ def main() -> None:
         "mean": mean,
         "std": std,
         "args": vars(args),
+        "split_used": split_used,
         "feature_ids": feature_ids,
     }, args.out_dir / "sae_quick.pt")
+    notes = [
+        "SAE quick experiment",
+        "=" * 60,
+        f"split used: {split_used}",
+        f"images: {len(images)}",
+        f"tokens: {len(records)}",
+        f"input dimension: {tokens_n.shape[1]}",
+        f"hidden SAE features: {args.hidden}",
+        "",
+        "Interpretation:",
+        "The SAE is trained on DINO patch-token activations. The yellow boxes in",
+        "feature contact sheets are the image patches whose internal activations",
+        "most strongly activate a sparse feature. They are feature exemplars, not",
+        "direct object labels and not causal explanations by themselves.",
+    ]
+    (args.out_dir / "SAE_INTERPRETATION_NOTE.txt").write_text("\n".join(notes) + "\n", encoding="utf-8")
     print(f"saved SAE outputs to {args.out_dir}")
 
 

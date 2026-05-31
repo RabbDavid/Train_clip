@@ -6,8 +6,8 @@ Main workflow:
 
 1. `attention_rollout_clip.py`
    - runs attention rollout for StreetCLIP or DFN2B-CLIP,
-   - saves heatmaps/panels,
-   - computes entropy and concentration metrics.
+   - saves attention-mass heatmaps and safer display panels,
+   - computes entropy and concentration metrics on attention mass, not colors.
 
 2. `summarize_attention_runs.py`
    - combines StreetCLIP and DFN2B attention metrics,
@@ -31,6 +31,10 @@ Main workflow:
 7. `compare_levi_dino_results.py`
    - compares Levi's exported DINO prediction CSVs with DFN2B/StreetCLIP
      prediction CSVs.
+
+8. `INTERPRETABILITY_NOTES.md`
+   - short conceptual guardrails for attention rollout, SAE contact sheets,
+     and CLIPSeg concept attribution.
 
 Full commands are in:
 

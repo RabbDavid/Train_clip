@@ -45,6 +45,11 @@ def main() -> None:
     ap.add_argument("--batch-size", type=int, default=8)
     ap.add_argument("--save-panels", type=int, default=80)
     ap.add_argument("--amp-dtype", choices=["bf16", "fp16", "fp32"], default="bf16")
+    ap.add_argument("--heatmap-norm", choices=["mass", "percentile", "minmax"], default="mass",
+                    help="panel color scaling; mass is comparable, minmax is local contrast only")
+    ap.add_argument("--vmax-multiplier", type=float, default=4.0)
+    ap.add_argument("--heatmap-alpha", type=float, default=0.38)
+    ap.add_argument("--cmap", default="viridis")
     ap.add_argument("--run-concepts", action="store_true", help="also run CLIPSeg concept attribution")
     ap.add_argument("--skip-concepts", action="store_true")
     ap.add_argument("--concept-max-samples", type=int, default=500)
@@ -104,6 +109,14 @@ def main() -> None:
         str(args.save_panels),
         "--amp-dtype",
         args.amp_dtype,
+        "--heatmap-norm",
+        args.heatmap_norm,
+        "--vmax-multiplier",
+        str(args.vmax_multiplier),
+        "--heatmap-alpha",
+        str(args.heatmap_alpha),
+        "--cmap",
+        args.cmap,
     ])
 
     run([
@@ -127,6 +140,14 @@ def main() -> None:
         str(args.save_panels),
         "--amp-dtype",
         args.amp_dtype,
+        "--heatmap-norm",
+        args.heatmap_norm,
+        "--vmax-multiplier",
+        str(args.vmax_multiplier),
+        "--heatmap-alpha",
+        str(args.heatmap_alpha),
+        "--cmap",
+        args.cmap,
     ])
 
     run([
