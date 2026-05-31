@@ -83,13 +83,15 @@ def main() -> None:
     docs_out = args.out_dir / "documentation"
     for src in [
         Path("README.md"),
+        Path("BENDE_GPU_RUN_REQUEST.md"),
+        Path("FINAL_PDF_PLAN.md"),
         Path("FOLDER_STRUCTURE.txt"),
         Path("RUN_GPU_ANALYSIS.md"),
         Path("requirements.txt"),
         Path("analysis/README.md"),
         Path("analysis/INTERPRETABILITY_NOTES.md"),
     ]:
-        copy_if_exists(src, docs_out / src.name)
+        copy_if_exists(src, docs_out / src.as_posix().replace("/", "__"))
 
     if args.analysis_root.exists():
         analysis_out = args.out_dir / "analysis_outputs"

@@ -70,6 +70,12 @@ If the DINO `.h5` weights are present and DINO reproduction should also run:
 python analysis/run_gpu_analysis_workflow.py --skip-concepts --run-dino
 ```
 
+For the final PDF run, prefer the explicit checklist in:
+
+```text
+BENDE_GPU_RUN_REQUEST.md
+```
+
 The sections below show the same steps manually.
 
 ## 2. Run Attention Rollout Metrics

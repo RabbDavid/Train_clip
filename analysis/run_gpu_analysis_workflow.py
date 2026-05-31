@@ -55,6 +55,12 @@ def main() -> None:
     ap.add_argument("--concept-max-samples", type=int, default=500)
     ap.add_argument("--run-dino", action="store_true", help="run legacy DINO analysis if dino h5 is present")
     ap.add_argument("--dino-h5", type=Path, default=Path("dino_geo_28_countries_full.weights.h5"))
+    ap.add_argument("--run-dino-sae", action="store_true", help="also run the DINO patch-token SAE experiment")
+    ap.add_argument("--dino-sae-max-per-country", type=int, default=200)
+    ap.add_argument("--dino-sae-patches-per-image", type=int, default=64)
+    ap.add_argument("--dino-sae-hidden", type=int, default=4096)
+    ap.add_argument("--dino-sae-epochs", type=int, default=20)
+    ap.add_argument("--levi-results-dir", type=Path, default=None, help="optional Levi Results/ folder for model comparison")
     ap.add_argument("--skip-package", action="store_true")
     ap.add_argument("--include-checkpoints", action=argparse.BooleanOptionalAction, default=True)
     args = ap.parse_args()
@@ -196,6 +202,31 @@ def main() -> None:
         else:
             print(f"Skipping DINO: {args.dino_h5} not found")
 
+    if args.run_dino_sae:
+        if args.dino_h5.exists():
+            run([
+                py,
+                "legacy_dino/sae_quick.py",
+                "--h5",
+                path_arg(args.dino_h5),
+                "--data-root",
+                path_arg(args.data_root),
+                "--out-dir",
+                path_arg(args.analysis_root / "dino_sae"),
+                "--split",
+                "train",
+                "--max-per-country",
+                str(args.dino_sae_max_per_country),
+                "--patches-per-image",
+                str(args.dino_sae_patches_per_image),
+                "--hidden",
+                str(args.dino_sae_hidden),
+                "--epochs",
+                str(args.dino_sae_epochs),
+            ])
+        else:
+            print(f"Skipping DINO SAE: {args.dino_h5} not found")
+
     if args.run_concepts and not args.skip_concepts:
         run([
             py,
@@ -219,6 +250,23 @@ def main() -> None:
             "--max-samples",
             str(args.concept_max_samples),
         ])
+
+    if args.levi_results_dir is not None:
+        if args.levi_results_dir.exists():
+            run([
+                py,
+                "analysis/compare_levi_dino_results.py",
+                "--levi-results-dir",
+                path_arg(args.levi_results_dir),
+                "--streetclip-pred",
+                path_arg(street_run / "test_predictions_streetclip.csv"),
+                "--dfn2b-pred",
+                path_arg(dfn_run / "test_predictions_detailed_clip.csv"),
+                "--out-dir",
+                path_arg(args.analysis_root / "levi_dino_comparison"),
+            ])
+        else:
+            print(f"Skipping Levi comparison: {args.levi_results_dir} not found")
 
     if not args.skip_package:
         package_cmd = [

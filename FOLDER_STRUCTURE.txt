@@ -42,6 +42,14 @@ Train_clip/
   RUN_GPU_ANALYSIS.md
     Exact commands for the GPU-side friend to run after pulling the repo.
 
+  BENDE_GPU_RUN_REQUEST.md
+    Very explicit GPU-side checklist: what to run, what to verify, and what to
+    send back for the final PDF.
+
+  FINAL_PDF_PLAN.md
+    The intended structure of the final one-PDF report and the exact artifacts
+    needed to write it.
+
   legacy_dino/
     attention_quantitative_eval.py
       Quantitative attention-rollout metrics for the older DINO/ViT model.
